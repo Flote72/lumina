@@ -1,10 +1,10 @@
 import { usePhotos } from '@/store/photos'
 import { usePresets } from '@/store/presets'
 
-const isPresetFile = (f: File) => /\.(xmp|json)$/i.test(f.name)
+const isPresetFile = (f: File) => /\.(xmp|lrtemplate|json)$/i.test(f.name)
 
 /**
- * Route dropped / picked files: `.xmp` and `.json` are presets (imported and applied to the current
+ * Route dropped / picked files: `.xmp`, `.lrtemplate` and `.json` are presets (imported and applied to the current
  * selection), everything else is treated as photos.
  */
 export async function handleIncomingFiles(files: File[]) {

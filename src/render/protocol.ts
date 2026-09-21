@@ -17,6 +17,8 @@ export interface RenderState {
   clipping: boolean
   /** export only: extra px of opacity at the frame edge */
   bleed?: number
+  /** show this mask as a red overlay */
+  overlayMaskId?: string | null
 }
 
 export type ToHost =

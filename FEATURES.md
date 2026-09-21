@@ -74,7 +74,8 @@
 - ✅ 프리셋 24개 기본 제공(흑백·필름·시네마틱·인물·풍경 등), 폴더별 분류, 저장(포함할 설정 그룹 선택), 삭제, **호버 미리보기**, JSON 가져오기/내보내기
 - ✅ **Lightroom `.xmp` 프리셋 가져오기**: 창에 끌어다 놓거나 가져오기 버튼 → 프리셋 등록 + 현재 사진에 자동 적용. 이름/폴더(`crs:Name`/`crs:Group`) 사용, 미적용 항목 안내
   - 변환: Basic(상대 WB `IncrementalTemperature/Tint` 포함), 톤 커브(RGB/R/G/B, 시작점이 0이 아니어도 OK), Parametric, HSL 24값, Color Grading(`ColorGrade*`와 옛 `SplitToning*`), 흑백/GrayMixer, Sharpen/NR, Lens, Perspective, Vignette, Grain
-  - ❌ 미적용: 절대 색온도(Kelvin), 카메라 프로파일/LUT(Look), 마스크, 렌즈 프로파일, 캘리브레이션(RedHue 등), Perspective Rotate. `.lrtemplate`(구버전 포맷): 미지원
+  - ✅ **`.lrtemplate`(Lightroom 1~6 프리셋)** 도 지원: Lua 문법 파서 + 구버전(Process Version 2003) 톤 슬라이더 근사 변환(Brightness/Contrast/Fill Light/Recovery/Blacks). 샘플 1,014개 중 Develop 프리셋 1,008개 파싱 성공(나머지 6개는 인쇄/슬라이드쇼 템플릿)
+  - ❌ 미적용: 절대 색온도(Kelvin), 카메라 프로파일/LUT(Look), 마스크, 렌즈 프로파일, 캘리브레이션(RedHue 등), Perspective Rotate. 구버전 슬라이더는 **근사**라 결과가 원본과 다를 수 있음
 - ✅ History 패널(단계 이동, 저장은 최근 50단계), Snapshots(이름 저장/적용/삭제)
 - ✅ 설정 복사/붙여넣기(Ctrl/Cmd+Shift+C/V, 그룹 선택), 여러 사진에 동기화, 이전 사진 설정 적용, 여러 장 선택 후 프리셋 적용
 
@@ -88,7 +89,30 @@
 - ⚠ WebP/AVIF에는 EXIF/저작권 문구가 들어가지 않음. 원본이 최대 텍스처 크기보다 크면 그 크기로 축소해 사용
 - ⚠ 내보내기는 Worker(OffscreenCanvas)가 필요함 — 미지원 브라우저에서는 안내 문구 표시
 
-## Phase 4 — ⬜ 마스킹, Spot Removal, Red-eye
+## Phase 4 — 마스킹 / 리터칭 (✅ 브라우저에서 동작 확인)
+
+### 마스킹 (로컬 보정)
+- ✅ 마스크 종류: **브러시**(Size/Feather/Flow/Density, 지우개 Alt), **선형 그라디언트**, **방사형 그라디언트**(타원·회전·페더), **밝기 범위**(Min/Max/Smoothness), **색상 범위**(스포이트 + Range)
+- ✅ 구성 요소 **추가 / 빼기 / 교차**, 구성 요소별·마스크 전체 **반전**, 적용량(Amount), 마스크 여러 개(이름 변경·표시/숨김·복제·삭제, 최대 12개)
+- ✅ 마스크별 독립 보정 12종: Exposure, Contrast, Highlights, Shadows, Temp, Tint, Saturation, Texture, Clarity, Dehaze, Sharpness, Noise
+- ✅ 오버레이(O), 화면 위 핸들(선형: 양 끝·중심 / 방사형: 중심·4축·회전 / 브러시: 크기 커서), 핀으로 마스크 선택, 단축키 K/M/⇧M/Del/[ ]
+- ✅ 좌표는 **원본 이미지 기준**이라 크롭·회전·원근·렌즈 왜곡 아래에서도 대상에 붙어 있음(화면 핸들도 셰이더와 동일한 매핑 사용, 왕복 오차 테스트)
+- ✅ GPU 마스크 패스: 뷰포트 해상도 R8 배열 텍스처(마스크당 1레이어), 모양이 안 바뀌면 재계산 생략, 브러시는 원본 좌표계 비트맵(최대 1536px)으로 래스터화
+- ✅ **내보내기에도 동일하게 적용**(타일 렌더링·브러시 포함, 수치로 확인)
+- ✅ 단위 테스트: 그라디언트/범위/합성 수식, 뷰포트↔원본 좌표 변환
+
+### 리터칭
+- ✅ **Spot Removal**: Heal / Clone, 클릭으로 생성(드래그로 크기), **소스 자동 추천**(주변 배경 유사도 + 질감 회피), 대상·소스 원 드래그 이동, 크기/페더/불투명도, 여러 스팟 관리(최대 32개). Heal은 소스와 주변의 저주파 색을 맞춰 보정(테스트: 이상적 값 대비 오차 ≤2/255)
+- ✅ **Red-eye**: 클릭하면 붉은 영역을 자동 감지해 중심·반경 설정, 동공 크기/어둡게 조절(테스트: (222,32,34) → (28,28,30))
+
+### Phase 4 제한 / 미구현
+- ❌ **AI 마스크(피사체/하늘 자동 선택)**: 미구현 — 선택 항목이며 Phase 5(onnxruntime-web)에서 별도 검토
+- ❌ 브러시 "Auto Mask"(경계 자동 감지), 마스크 순서 드래그 정렬, 범위 마스크의 Depth/Luminance 샘플링 평균화: 미구현
+- ⚠ Heal은 Poisson 블렌딩이 아니라 저주파 색 보정 근사. 큰 스팟이나 복잡한 질감에서는 Lightroom보다 티가 날 수 있음
+- ⚠ 브러시 마스크는 OffscreenCanvas가 필요(없는 브라우저에서는 비활성 안내)
+- ⚠ 마스크·스팟·적목은 "설정 복사/동기화"의 기본 선택에서 제외됨(사진 내용에 종속) — 다이얼로그에서 직접 체크하면 복사 가능
+- ⚠ 원근/왜곡이 큰 경우 화면 핸들의 원 반경은 근사값(중심 위치는 정확)
+
 ## Phase 5 — ⬜ RAW(libraw-wasm 실측 후 결정, 불안정 시 내장 JPEG 프리뷰 추출), 선택: AI 마스크, 성능 최적화, PWA/Tauri
 
 ## 미구현 / 제한 사항

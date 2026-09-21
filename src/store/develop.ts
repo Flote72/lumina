@@ -1,12 +1,42 @@
 import { create } from 'zustand'
 import type { ZoomMode } from '@/core/geometry/crop'
 import type { CompareMode } from '@/render/protocol'
-import type { DeepPartial, EditParams } from '@/core/params/params'
+export type { MaskKind }
+import type { DeepPartial, EditParams, MaskKind, MaskOp } from '@/core/params/params'
+import { DEFAULT_BRUSH, type BrushSettings } from '@/core/mask/create'
 
 export type GuideKind = 'none' | 'thirds' | 'golden' | 'grid' | 'diagonal'
 const GUIDES: GuideKind[] = ['thirds', 'golden', 'grid', 'diagonal', 'none']
 
+export type LocalTool = 'mask' | 'spot' | 'redeye'
+/** What the next drag / click on the image creates. */
+export type MaskDraw =
+  | { kind: 'brush' | 'linear' | 'radial'; op: MaskOp; maskId: string | null }
+  | { kind: 'colorpick'; maskId: string; compId: string }
+
 interface DevelopState {
+  /** local-adjustment / retouch tool currently active (crop is `cropEdit`) */
+  tool: LocalTool | null
+  maskDraw: MaskDraw | null
+  maskSel: string | null
+  compSel: string | null
+  /** show the selected mask as a red overlay */
+  overlay: boolean
+  brush: BrushSettings & { erase: boolean }
+  spotSel: string | null
+  spot: { mode: 'heal' | 'clone'; radius: number; feather: number; opacity: number }
+  redSel: string | null
+  red: { pupil: number; darken: number }
+  setTool: (t: LocalTool | null) => void
+  setMaskDraw: (d: MaskDraw | null) => void
+  selectMask: (maskId: string | null, compId?: string | null) => void
+  setOverlay: (v: boolean) => void
+  setBrush: (p: Partial<BrushSettings & { erase: boolean }>) => void
+  setSpotSel: (id: string | null) => void
+  setSpot: (p: Partial<DevelopState['spot']>) => void
+  setRedSel: (id: string | null) => void
+  setRed: (p: Partial<DevelopState['red']>) => void
+
   zoomMode: ZoomMode
   customZoom: number
   pan: { x: number; y: number }
@@ -45,6 +75,26 @@ interface DevelopState {
 }
 
 export const useDevelop = create<DevelopState>()((set, get) => ({
+  tool: null,
+  maskDraw: null,
+  maskSel: null,
+  compSel: null,
+  overlay: false,
+  brush: { ...DEFAULT_BRUSH, erase: false },
+  spotSel: null,
+  spot: { mode: 'heal', radius: 0.02, feather: 50, opacity: 100 },
+  redSel: null,
+  red: { pupil: 50, darken: 50 },
+  setTool: (tool) => set((s) => ({ tool, maskDraw: null, picking: false, mixerTarget: null, overlay: tool === 'mask' ? s.overlay : false, cropEdit: tool ? false : s.cropEdit })),
+  setMaskDraw: (maskDraw) => set({ maskDraw }),
+  selectMask: (maskSel, compId) => set((s) => ({ maskSel, compSel: compId === undefined ? (maskSel === s.maskSel ? s.compSel : null) : compId })),
+  setOverlay: (overlay) => set({ overlay }),
+  setBrush: (p) => set((s) => ({ brush: { ...s.brush, ...p } })),
+  setSpotSel: (spotSel) => set({ spotSel }),
+  setSpot: (p) => set((s) => ({ spot: { ...s.spot, ...p } })),
+  setRedSel: (redSel) => set({ redSel }),
+  setRed: (p) => set((s) => ({ red: { ...s.red, ...p } })),
+
   zoomMode: 'fit',
   customZoom: 1,
   pan: { x: 0, y: 0 },
@@ -71,7 +121,7 @@ export const useDevelop = create<DevelopState>()((set, get) => ({
   // \  toggles Before ⇄ After
   cycleCompare: () => set((s) => ({ compare: { ...s.compare, mode: s.compare.mode === 'off' ? 'before' : 'off' } })),
   toggleClipping: () => set((s) => ({ clipping: !s.clipping })),
-  enterCrop: (cropSnapshot) => set({ cropEdit: true, cropSnapshot, zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: true, picking: false }),
+  enterCrop: (cropSnapshot) => set({ tool: null, maskDraw: null, cropEdit: true, cropSnapshot, zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: true, picking: false }),
   exitCrop: () => set({ cropEdit: false, cropSnapshot: null, zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: true }),
   cycleGuide: () => set({ guide: GUIDES[(GUIDES.indexOf(get().guide) + 1) % GUIDES.length]! }),
   setPicking: (picking) => set({ picking, mixerTarget: picking ? null : get().mixerTarget }),

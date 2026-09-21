@@ -1,5 +1,6 @@
 #version 300 es
 precision highp float;
+precision highp sampler2DArray;
 // Final pass. Order: WB/exposure (linear) → dehaze → tone → tone curve → presence → colour mixer →
 // vibrance/saturation → colour grading → sharpen → post-crop vignette → grain → clip overlay.
 uniform sampler2D uWork;
@@ -18,6 +19,13 @@ uniform vec2 uHalfFrame; // half size of visible frame (output px)
 uniform vec3 uGain;      // WB gains * exposure
 uniform float uContrast, uHighlights, uShadows, uWhites, uBlacks;
 uniform float uTexture, uClarity, uDehaze, uVibrance, uSaturation;
+uniform sampler2DArray uMasks;   // local-adjustment masks (one layer per visible mask)
+uniform int uMaskN;
+uniform vec4 uLocA[12];  // contrast, highlights, shadows, saturation
+uniform vec4 uLocB[12];  // texture, clarity, dehaze, sharpness
+uniform vec4 uLocC[12];  // noise
+uniform vec3 uLocGain[12]; // linear gain from exposure + white balance
+uniform int uOverlay;    // layer index shown as a red overlay (-1 = none)
 uniform bool uClip;
 uniform bool uCurveOn;
 uniform bool uMixOn;
@@ -36,6 +44,10 @@ out vec4 outColor;
 vec3 enc(vec3 c) {
   c = max(c, vec3(0.0));
   return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
+}
+vec3 dec(vec3 e) {
+  e = max(e, vec3(0.0));
+  return mix(e / 12.92, pow((e + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), e));
 }
 float lum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 float sm(float a, float b, float x) { float t = clamp((x - a) / (b - a), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
@@ -109,6 +121,27 @@ float vnoise(vec2 p) {
   return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
 }
 
+// Local (mask) adjustment of an already graded pixel.
+vec3 localAdjust(vec3 x, vec4 A, vec4 B, vec4 Cc, vec3 gain, float L0, vec3 bsE, vec3 blE, float mid) {
+  x = enc(dec(x) * gain);
+  float Y = lum(x);
+  float ws = 1.0 - sm(0.0, 0.55, Y);
+  x = x * (1.0 + A.z * 0.7 * ws) + A.z * 0.04 * ws;
+  x *= 1.0 + A.y * 0.5 * sm(0.45, 1.0, Y);
+  if (A.x >= 0.0) x = mix(x, x * x * (3.0 - 2.0 * x), A.x * 1.5);
+  else x = mix(x, vec3(0.5), -A.x * 0.6);
+  if (B.z != 0.0) {
+    float haze = min(blE.r, min(blE.g, blE.b));
+    if (B.z > 0.0) x = (x - vec3(0.95) * B.z * 0.7 * haze) / max(1.0 - B.z * 0.7 * haze, 0.15);
+    else x = mix(x, vec3(0.85), -B.z * 0.4);
+  }
+  x += B.x * 0.9 * (L0 - lum(bsE));
+  x += B.y * 1.1 * mid * (L0 - lum(blE));
+  x += B.w * 1.6 * (L0 - lum(bsE));
+  x = mix(x, bsE, clamp(Cc.x, 0.0, 1.0));
+  return mix(vec3(lum(x)), x, 1.0 + A.w);
+}
+
 void main() {
   vec2 uv = uUvOffset + (gl_FragCoord.xy / uSize) * uUvScale;
   vec4 w = texture(uWork, uv);
@@ -171,6 +204,15 @@ void main() {
     e = mix(vec3(Lc), e, 1.0 + amt);
   }
   e = mix(vec3(lum(e)), e, 1.0 + uSaturation);
+
+  // Local adjustments (masks)
+  float overlayA = 0.0;
+  for (int k = 0; k < 12; k++) {
+    if (k >= uMaskN) break;
+    float a = texture(uMasks, vec3(uv, float(k))).r;
+    if (k == uOverlay) overlayA = a;
+    if (a > 0.002) e = mix(e, localAdjust(e, uLocA[k], uLocB[k], uLocC[k], uLocGain[k], L0, bs, bl, mid), a);
+  }
 
   // Black & white with per-colour weights
   if (uBW) {
@@ -237,6 +279,7 @@ void main() {
   }
 
   e = clamp(e, 0.0, 1.0);
+  if (overlayA > 0.0) e = mix(e, vec3(0.95, 0.12, 0.12), overlayA * 0.55);
   if (uClip) {
     if (max(e.r, max(e.g, e.b)) >= 0.996) e = vec3(1.0, 0.15, 0.15);
     else if (min(e.r, min(e.g, e.b)) <= 0.004) e = vec3(0.15, 0.35, 1.0);

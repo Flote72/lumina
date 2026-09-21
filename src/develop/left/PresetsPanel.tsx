@@ -45,7 +45,7 @@ export function PresetsPanel() {
           ref={fileRef}
           type="file"
           multiple
-          accept=".xmp,.json,application/json,application/xml,text/xml"
+          accept=".xmp,.lrtemplate,.json,application/json,application/xml,text/xml"
           hidden
           onChange={(e) => {
             const files = Array.from(e.target.files ?? [])

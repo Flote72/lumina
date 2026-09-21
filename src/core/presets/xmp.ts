@@ -8,6 +8,8 @@ export interface XmpPreset {
   applied: number
   /** settings present in the file that Lumina cannot represent */
   skipped: string[]
+  /** old Process Version (2003/2010) tone sliders were approximated */
+  legacy: boolean
 }
 
 const decode = (s: string) =>
@@ -63,11 +65,14 @@ const IGNORED = new Set([
 const TRIVIAL = new Set(['', '0', '0.0', '0.00', '+0', 'False', 'false', 'Custom', 'None'])
 
 /**
- * Translate a Lightroom/Camera Raw `.xmp` preset into a sparse Lumina patch.
- * Only keys present in the file are returned, so applying it leaves everything else untouched.
+ * Translate Camera Raw settings (already flattened into `scalars` and curve `seqs`) into a sparse Lumina patch.
+ * Shared by `.xmp` and `.lrtemplate`. Only keys present are returned, so applying leaves everything else untouched.
  */
-export function parseXmpPreset(xml: string): XmpPreset {
-  const { scalars, seqs, text } = readCrs(xml)
+export function translateSettings(
+  scalars: Map<string, string>,
+  seqs: Map<string, string[]>,
+  extra: { masks?: boolean; look?: boolean } = {},
+): Omit<XmpPreset, 'name' | 'group'> {
   const patch: Record<string, Record<string, unknown>> = {}
   const used = new Set<string>()
   let applied = 0
@@ -93,12 +98,31 @@ export function parseXmpPreset(xml: string): XmpPreset {
   // Basic
   map(['IncrementalTemperature'], 'basic', ['temp'], -100, 100)
   map(['IncrementalTint'], 'basic', ['tint'], -100, 100)
-  map(['Exposure2012', 'Exposure'], 'basic', ['exposure'], -5, 5)
-  map(['Contrast2012', 'Contrast'], 'basic', ['contrast'], -100, 100)
-  map(['Highlights2012'], 'basic', ['highlights'], -100, 100)
-  map(['Shadows2012'], 'basic', ['shadows'], -100, 100)
-  map(['Whites2012'], 'basic', ['whites'], -100, 100)
-  map(['Blacks2012'], 'basic', ['blacks'], -100, 100)
+  // Process Version 2003/2010 presets (Lightroom 1–3) use different tone sliders. Detect by the absence of *2012 keys.
+  const legacy = !['Exposure2012', 'Contrast2012', 'Highlights2012', 'Shadows2012', 'Whites2012', 'Blacks2012'].some((k) => scalars.has(k))
+  if (legacy) {
+    // Approximation: Brightness (default 50) shifts midtones, Contrast default is 25, Recovery/Fill Light map to
+    // Highlights/Shadows, and the legacy "Shadows" slider is what later became Blacks (default 5, inverted).
+    const ex = num(scalars.get('Exposure'))
+    const br = num(scalars.get('Brightness'))
+    if (ex !== null || br !== null) put('basic', ['exposure'], Math.round(clamp((ex ?? 0) + ((br ?? 50) - 50) * 0.01, -5, 5) * 100) / 100)
+    const ct = num(scalars.get('Contrast'))
+    if (ct !== null) put('basic', ['contrast'], clamp(Math.round(ct - 25), -100, 100))
+    const rec = num(scalars.get('HighlightRecovery') ?? scalars.get('Recovery'))
+    if (rec !== null) put('basic', ['highlights'], clamp(-rec, -100, 100))
+    const fill = num(scalars.get('FillLight'))
+    if (fill !== null) put('basic', ['shadows'], clamp(fill, -100, 100))
+    const bl = num(scalars.get('Shadows'))
+    if (bl !== null) put('basic', ['blacks'], clamp(-(bl - 5), -100, 100))
+    for (const k of ['Exposure', 'Brightness', 'Contrast', 'HighlightRecovery', 'Recovery', 'FillLight', 'Shadows']) used.add(k)
+  } else {
+    map('Exposure2012', 'basic', ['exposure'], -5, 5)
+    map('Contrast2012', 'basic', ['contrast'], -100, 100)
+    map('Highlights2012', 'basic', ['highlights'], -100, 100)
+    map('Shadows2012', 'basic', ['shadows'], -100, 100)
+    map('Whites2012', 'basic', ['whites'], -100, 100)
+    map('Blacks2012', 'basic', ['blacks'], -100, 100)
+  }
   map('Texture', 'basic', ['texture'], -100, 100)
   map(['Clarity2012', 'Clarity'], 'basic', ['clarity'], -100, 100)
   map('Dehaze', 'basic', ['dehaze'], -100, 100)
@@ -113,9 +137,14 @@ export function parseXmpPreset(xml: string): XmpPreset {
   map('ParametricShadowSplit', 'toneCurve', ['parametric', 'split1'], 5, 90)
   map('ParametricMidtoneSplit', 'toneCurve', ['parametric', 'split2'], 10, 95)
   map('ParametricHighlightSplit', 'toneCurve', ['parametric', 'split3'], 15, 95)
-  for (const [key, ch] of [['ToneCurvePV2012', 'rgb'], ['ToneCurvePV2012Red', 'r'], ['ToneCurvePV2012Green', 'g'], ['ToneCurvePV2012Blue', 'b']] as const) {
-    used.add(key)
-    const pts = parseCurve(seqs.get(key))
+  for (const [keys, ch] of [
+    [['ToneCurvePV2012', 'ToneCurve'], 'rgb'],
+    [['ToneCurvePV2012Red', 'ToneCurveRed'], 'r'],
+    [['ToneCurvePV2012Green', 'ToneCurveGreen'], 'g'],
+    [['ToneCurvePV2012Blue', 'ToneCurveBlue'], 'b'],
+  ] as const) {
+    for (const k of keys) used.add(k)
+    const pts = parseCurve(seqs.get(keys[0]) ?? seqs.get(keys[1]))
     if (pts) put('toneCurve', ['points', ch], pts)
   }
 
@@ -183,16 +212,23 @@ export function parseXmpPreset(xml: string): XmpPreset {
   // Anything meaningful that we did not translate
   const skipped: string[] = []
   const handled = (k: string) =>
-    used.has(k) || IGNORED.has(k) || /^(ColorGrade|SplitToning)/.test(k) || /^(Hue|Saturation|Luminance)Adjustment/.test(k) || /^GrayMixer/.test(k)
+    used.has(k) || IGNORED.has(k) || /^(Enable|Auto)/.test(k) || /^(ColorGrade|SplitToning)/.test(k) || /^(Hue|Saturation|Luminance)Adjustment/.test(k) || /^GrayMixer/.test(k)
   for (const [k, v] of scalars) {
     if (handled(k) || TRIVIAL.has(v.trim())) continue
     if (/^(Temperature|Tint)$/.test(k)) skipped.push(`${k} (absolute)`)
     else skipped.push(k)
   }
   for (const k of seqs.keys()) if (!used.has(k)) skipped.push(k)
-  if (/<crs:MaskGroupBasedCorrections/.test(xml)) skipped.push('MaskGroupBasedCorrections')
-  if (/<crs:Look>|<crs:Look\b/.test(xml)) skipped.push('Look')
+  if (extra.masks) skipped.push('MaskGroupBasedCorrections')
+  if (extra.look) skipped.push('Look')
 
+  return { patch: patch as DeepPartial<EditParams>, applied, skipped: [...new Set(skipped)], legacy }
+}
+
+/** Translate a Lightroom / Camera Raw `.xmp` preset into a sparse Lumina patch. */
+export function parseXmpPreset(xml: string): XmpPreset {
+  const { scalars, seqs, text } = readCrs(xml)
+  const r = translateSettings(scalars, seqs, { masks: /<crs:MaskGroupBasedCorrections/.test(xml), look: /<crs:Look\b/.test(xml) })
   const name = text('Name').trim()
-  return { name: name || 'Imported preset', group: text('Group').trim(), patch: patch as DeepPartial<EditParams>, applied, skipped: [...new Set(skipped)] }
+  return { name: name || 'Imported preset', group: text('Group').trim(), ...r }
 }

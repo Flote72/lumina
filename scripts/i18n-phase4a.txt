@@ -1,0 +1,2 @@
+preset.legacy| · 구버전(2003) 슬라이더는 근사 변환됩니다| · legacy (2003) tone sliders were approximated
+preset.notDevelop|"{name}"은(는) Develop 프리셋이 아닙니다.|"{name}" is not a Develop preset.

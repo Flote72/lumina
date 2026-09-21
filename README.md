@@ -29,7 +29,8 @@ src/
   core/           React/DOM 무의존 순수 로직 (params, curve, color, histogram, geometry, presets/xmp, library/filter, export; 단위 테스트 대상)
   render/         WebGL2 파이프라인: Renderer(패스), host(Worker/메인 공용), client(메인 측 핸들), shaders/*.glsl
   workers/        썸네일 디코드 워커 풀
-  develop/        Develop 캔버스(줌/팬/크롭/비교), Basic 패널, 히스토그램, Navigator
+  develop/        Develop 캔버스(줌/팬/크롭/비교), 보정 패널, 히스토그램, Navigator
+  develop/local/  마스킹·스팟·적목: 오버레이(핸들/브러시), 패널, 조작 함수
   catalog/        Dexie 스키마, EXIF 읽기
   library/        그리드/비교/서베이, 필터 툴바, 컬렉션·메타데이터 패널, 가져오기 라우팅
   export/         내보내기 엔진(Worker, 타일 렌더링), 설정 UI, 배치 실행(ZIP)

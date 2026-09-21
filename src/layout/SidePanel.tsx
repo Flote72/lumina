@@ -4,6 +4,8 @@ import { HistogramPanel } from '@/develop/Histogram'
 import { PresetsPanel } from '@/develop/left/PresetsPanel'
 import { HistoryPanel, SettingsPanel, SnapshotsPanel } from '@/develop/left/SnapshotsHistoryPanels'
 import { ExportSettingsPanel, FileNamingPanel, WatermarkPanel } from '@/export/ExportPanels'
+import { MaskPanel } from '@/develop/local/MaskPanel'
+import { RetouchPanel } from '@/develop/local/RetouchPanel'
 import { Navigator } from '@/develop/Navigator'
 import { CatalogPanel, MetadataPanel } from '@/library/LibraryPanels'
 import { ColorGradingPanel } from '@/develop/panels/ColorGradingPanel'
@@ -29,6 +31,8 @@ const IMPLEMENTED: Partial<Record<string, ReactNode>> = {
   'develop.history': <HistoryPanel />,
   'develop.settings': <SettingsPanel />,
   'develop.histogram': <HistogramPanel />,
+  'develop.masking': <MaskPanel />,
+  'develop.retouch': <RetouchPanel />,
   'develop.basic': <BasicPanel />,
   'develop.toneCurve': <ToneCurvePanel />,
   'develop.colorMixer': <ColorMixerPanel />,

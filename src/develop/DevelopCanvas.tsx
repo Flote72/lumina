@@ -8,7 +8,9 @@ import { useT } from '@/i18n'
 import { renderClient } from '@/render/client'
 import { useDevelop } from '@/store/develop'
 import { usePhotos } from '@/store/photos'
+import type { MapParams } from '@/core/geometry/map'
 import { CropOverlay } from './CropOverlay'
+import { LocalOverlay } from './local/LocalOverlay'
 import { DevelopToolbar } from './DevelopToolbar'
 import './histogramStore'
 import { useAnimatedView } from './useAnimatedView'
@@ -25,7 +27,7 @@ export function DevelopCanvas({ loupe = false }: { loupe?: boolean }) {
   const params = useMemo(() => (stored && preview ? applyPatch(stored, preview) : stored), [stored, preview])
   const setDims = usePhotos((s) => s.setDims)
   const dev = useDevelop()
-  const { zoomMode, customZoom, pan, smooth, compare, clipping, cropEdit, picking, loadedId, mixerTarget } = dev
+  const { zoomMode, customZoom, pan, smooth, compare, clipping, cropEdit, picking, loadedId, mixerTarget, tool, overlay, maskSel } = dev
 
   const boxRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ w: 0, h: 0, dpr: 1 })
@@ -67,7 +69,7 @@ export function DevelopCanvas({ loupe = false }: { loupe?: boolean }) {
     const d = useDevelop.getState()
     d.setReadout(null)
     if (d.cropEdit) d.exitCrop()
-    useDevelop.setState({ zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: false, picking: false, mixerTarget: null })
+    useDevelop.setState({ zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: false, picking: false, mixerTarget: null, tool: null, maskDraw: null, maskSel: null, compSel: null, spotSel: null, redSel: null })
     // already in the renderer (e.g. switching Library loupe ⇄ Develop): nothing to load
     if (id && d.loadedId === id && errorId !== id) return
     d.setLoadedId(null)
@@ -113,20 +115,39 @@ export function DevelopCanvas({ loupe = false }: { loupe?: boolean }) {
     useViewInfo.setState({ zoom: view.zoom, x: view.x, y: view.y, vw: vwDev, vh: vhDev, fit: fitZoom })
   }, [view.zoom, view.x, view.y, vwDev, vhDev, fitZoom])
 
+  const mapParams: MapParams | null =
+    ready && params
+      ? {
+          W,
+          H,
+          cx: params.crop.cx * W,
+          cy: params.crop.cy * H,
+          angle: (params.crop.angle * Math.PI) / 180,
+          zoom: view.zoom,
+          panX: view.x,
+          panY: view.y,
+          vw: vwDev,
+          vh: vhDev,
+          transform: params.transform,
+          distortion: params.lens.distortion,
+        }
+      : null
+
   // --- render ---------------------------------------------------------------------------------
   useEffect(() => {
     if (!ready || !params) return
     renderClient.render({
       params,
       // "before" = original tones, same geometry (crop / transform / lens)
-      before: { ...createDefaultParams(), crop: params.crop, transform: params.transform, lens: params.lens },
+      before: { ...createDefaultParams(), crop: params.crop, transform: params.transform, lens: params.lens, spots: params.spots, redEyes: params.redEyes },
+      overlayMaskId: overlay && tool === 'mask' ? maskSel : null,
       zoom: view.zoom,
       pan: [view.x, view.y],
       cropEdit,
       compare,
       clipping,
     })
-  }, [ready, params, view.zoom, view.x, view.y, cropEdit, compare, clipping, vwDev, vhDev])
+  }, [ready, params, view.zoom, view.x, view.y, cropEdit, compare, clipping, vwDev, vhDev, overlay, tool, maskSel])
 
   // --- wheel zoom (needs a non-passive listener) ------------------------------------------------
   useEffect(() => {
@@ -293,6 +314,8 @@ export function DevelopCanvas({ loupe = false }: { loupe?: boolean }) {
         {ready && cropEdit && crop && (
           <CropOverlay W={W} H={H} crop={crop} vw={box.w} vh={box.h} zCss={view.zoom / box.dpr} panX={view.x / box.dpr} panY={view.y / box.dpr} />
         )}
+
+        {ready && !loupe && !cropEdit && tool && mapParams && <LocalOverlay map={mapParams} dpr={box.dpr} vw={box.w} vh={box.h} />}
 
         {ready && (compare.mode === 'lr' || compare.mode === 'tb') && (
           <div

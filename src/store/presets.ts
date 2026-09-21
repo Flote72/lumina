@@ -3,6 +3,7 @@ import { db, type PresetRow } from '@/catalog/db'
 import { extractPatch, type GroupId } from '@/core/params/groups'
 import { applyPatch, type DeepPartial, type EditParams } from '@/core/params/params'
 import { BUILTIN_PRESETS } from '@/core/presets/builtin'
+import { parseLrTemplate } from '@/core/presets/lrtemplate'
 import { parseXmpPreset } from '@/core/presets/xmp'
 import { translate, type Lang } from '@/i18n'
 import { targetIds } from './library'
@@ -65,17 +66,25 @@ export const usePresets = create<PresetsState>()((set, get) => ({
     for (const f of files) {
       try {
         const text = await f.text()
-        if (/\.xmp$/i.test(f.name)) {
-          const r = parseXmpPreset(text)
+        if (/\.(xmp|lrtemplate)$/i.test(f.name)) {
+          const isXmp = /\.xmp$/i.test(f.name)
+          let r: ReturnType<typeof parseXmpPreset>
+          try {
+            r = isXmp ? parseXmpPreset(text) : parseLrTemplate(text)
+          } catch {
+            toast(translate(lang, 'preset.notDevelop', { name: f.name }), 'error')
+            continue
+          }
           if (r.applied === 0) {
             toast(translate(lang, 'preset.noSettings', { name: f.name }), 'error')
             continue
           }
-          const name = r.name === 'Imported preset' ? f.name.replace(/\.xmp$/i, '') : r.name
+          const name = r.name === 'Imported preset' ? f.name.replace(/\.(xmp|lrtemplate)$/i, '') : r.name
           const row = await get().add(name, r.group, r.patch, 'xmp')
           out.push(row)
-          const skipped = r.skipped.length ? translate(lang, 'preset.skipped', { n: r.skipped.length, list: r.skipped.slice(0, 6).join(', ') }) : ''
-          if (opts?.apply && targetIds().length) {
+          const skipped = (r.skipped.length ? translate(lang, 'preset.skipped', { n: r.skipped.length, list: r.skipped.slice(0, 6).join(', ') }) : '') + (r.legacy ? translate(lang, 'preset.legacy') : '')
+          // only auto-apply when a single preset was dropped (a pack of presets should not stack on one photo)
+          if (opts?.apply && files.length === 1 && targetIds().length) {
             await applyPreset({ id: row.id, name, group: r.group, patch: r.patch, builtin: false })
             toast(`${translate(lang, 'preset.appliedImported', { name, n: r.applied })}${skipped}`)
           } else toast(`${translate(lang, 'preset.imported', { name, n: r.applied })}${skipped}`)

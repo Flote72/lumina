@@ -13,12 +13,14 @@ export const SETTING_GROUPS = [
   { id: 'transform', paths: [['transform']] },
   { id: 'effects', paths: [['effects']] },
   { id: 'crop', paths: [['crop']] },
+  { id: 'masks', paths: [['masks']] },
+  { id: 'retouch', paths: [['spots'], ['redEyes']] },
 ] as const
 
 export type GroupId = (typeof SETTING_GROUPS)[number]['id']
 export const ALL_GROUPS: GroupId[] = SETTING_GROUPS.map((g) => g.id)
-/** Everything except geometry that is specific to one photo. */
-export const DEFAULT_COPY_GROUPS: GroupId[] = ALL_GROUPS.filter((g) => g !== 'crop')
+/** Everything except things tied to one photo's content (crop, masks, spots). */
+export const DEFAULT_COPY_GROUPS: GroupId[] = ALL_GROUPS.filter((g) => g !== 'crop' && g !== 'masks' && g !== 'retouch')
 
 /** Copy the selected groups out of `params` as a sparse patch. */
 export function extractPatch(params: EditParams, groups: readonly GroupId[]): DeepPartial<EditParams> {

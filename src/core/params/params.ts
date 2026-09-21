@@ -106,6 +106,102 @@ export interface BwParams {
   mix: MixerRecord
 }
 
+// ---- local adjustments -------------------------------------------------------------------------------
+// All positions are normalized to the ORIGINAL image (x by width, y by height); radii and brush sizes are
+// fractions of the image's long side. Masks therefore follow the picture under crop / rotate / transform.
+
+export type MaskOp = 'add' | 'subtract' | 'intersect'
+
+export interface BrushStroke {
+  erase: boolean
+  /** fraction of the long side (diameter) */
+  size: number
+  /** 0..100 — soft edge */
+  feather: number
+  /** 1..100 — build-up per stamp */
+  flow: number
+  /** 0..100 — maximum opacity of the stroke */
+  density: number
+  /** x0, y0, x1, y1, … */
+  points: number[]
+}
+
+interface ComponentBase {
+  id: string
+  op: MaskOp
+  invert: boolean
+}
+export type MaskComponent = ComponentBase &
+  (
+    | { kind: 'brush'; strokes: BrushStroke[] }
+    | { kind: 'linear'; x0: number; y0: number; x1: number; y1: number }
+    | { kind: 'radial'; cx: number; cy: number; rx: number; ry: number; angle: number; feather: number }
+    | { kind: 'luminance'; lo: number; hi: number; smooth: number }
+    | { kind: 'color'; r: number; g: number; b: number; range: number }
+  )
+export type MaskKind = MaskComponent['kind']
+
+export interface MaskAdjust {
+  exposure: number
+  contrast: number
+  highlights: number
+  shadows: number
+  temp: number
+  tint: number
+  saturation: number
+  texture: number
+  clarity: number
+  dehaze: number
+  sharpness: number
+  noise: number
+}
+export const DEFAULT_MASK_ADJUST: Readonly<MaskAdjust> = {
+  exposure: 0, contrast: 0, highlights: 0, shadows: 0, temp: 0, tint: 0,
+  saturation: 0, texture: 0, clarity: 0, dehaze: 0, sharpness: 0, noise: 0,
+}
+
+export interface Mask {
+  id: string
+  name: string
+  visible: boolean
+  invert: boolean
+  /** 0..100 */
+  amount: number
+  components: MaskComponent[]
+  adjust: MaskAdjust
+}
+
+export interface Spot {
+  id: string
+  mode: 'heal' | 'clone'
+  /** destination (the blemish) */
+  x: number
+  y: number
+  /** source (where pixels are taken from) */
+  sx: number
+  sy: number
+  /** fraction of the long side */
+  radius: number
+  feather: number
+  opacity: number
+}
+
+export interface RedEye {
+  id: string
+  x: number
+  y: number
+  /** fraction of the long side */
+  radius: number
+  /** 0..100 */
+  pupil: number
+  /** 0..100 */
+  darken: number
+}
+
+export const MAX_MASKS = 12
+export const MAX_SPOTS = 32
+export const MAX_REDEYES = 8
+
 export interface EditParams {
   version: 1
   basic: BasicParams
@@ -118,6 +214,9 @@ export interface EditParams {
   transform: TransformParams
   effects: EffectsParams
   bw: BwParams
+  masks: Mask[]
+  spots: Spot[]
+  redEyes: RedEye[]
 }
 
 export const DEFAULT_BASIC: Readonly<BasicParams> = {
@@ -161,6 +260,9 @@ export function createDefaultParams(): EditParams {
     transform: { vertical: 0, horizontal: 0, scale: 100, aspect: 0, xOffset: 0, yOffset: 0 },
     effects: { vigAmount: 0, vigMid: 50, vigRound: 0, vigFeather: 50, grainAmount: 0, grainSize: 25, grainRough: 50 },
     bw: { enabled: false, mix: zeroMixer() },
+    masks: [],
+    spots: [],
+    redEyes: [],
   }
 }
 
@@ -188,9 +290,11 @@ export function isDefaultCrop(c: CropParams): boolean {
 export function passNeeds(p: EditParams) {
   const b = p.basic
   const d = p.detail
+  const local = p.masks.filter((m) => m.visible).map((m) => m.adjust)
+  const any = (k: keyof MaskAdjust) => local.some((a) => a[k] !== 0)
   return {
-    blurSmall: b.texture !== 0,
-    blurLarge: b.clarity !== 0 || b.dehaze !== 0,
+    blurSmall: b.texture !== 0 || any('texture') || any('sharpness') || any('noise'),
+    blurLarge: b.clarity !== 0 || b.dehaze !== 0 || any('clarity') || any('dehaze'),
     blurSharp: d.sharpAmount > 0,
     cleanup: d.nrLum > 0 || d.nrColor > 0 || p.lens.defringe > 0,
   }
@@ -205,7 +309,13 @@ export function getIn(obj: unknown, path: readonly string[]): number {
 export function setIn<T>(obj: T, path: readonly string[], value: unknown): T {
   const [k, ...rest] = path
   const src = obj as Record<string, unknown>
-  return { ...src, [k!]: rest.length ? setIn(src[k!], rest, value) : value } as T
+  const next = rest.length ? setIn(src[k!], rest, value) : value
+  if (Array.isArray(obj)) {
+    const copy = [...obj]
+    copy[Number(k)] = next
+    return copy as T
+  }
+  return { ...src, [k!]: next } as T
 }
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends (infer U)[] ? U[] : T[K] extends object ? DeepPartial<T[K]> : T[K] }

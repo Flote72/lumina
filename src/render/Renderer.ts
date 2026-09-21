@@ -1,6 +1,7 @@
 import { buildCurveLUT, isIdentityCurve } from '@/core/curve/curve'
 import { gradingActive, wheelOffset } from '@/core/color/grading'
-import { MIXER_COLORS, passNeeds, type EditParams } from '@/core/params/params'
+import { maskShapeKey } from '@/core/mask/create'
+import { MAX_MASKS, MAX_REDEYES, MAX_SPOTS, MIXER_COLORS, passNeeds, type EditParams, type Mask, type MaskComponent } from '@/core/params/params'
 import { wbGains } from '@/core/color/whiteBalance'
 import { frameSize } from '@/core/geometry/crop'
 import blitSrc from './shaders/blit.frag.glsl?raw'
@@ -8,6 +9,8 @@ import blurSrc from './shaders/blur.frag.glsl?raw'
 import cleanupSrc from './shaders/cleanup.frag.glsl?raw'
 import finalSrc from './shaders/final.frag.glsl?raw'
 import geometrySrc from './shaders/geometry.frag.glsl?raw'
+import maskSrc from './shaders/mask.frag.glsl?raw'
+import { rasterizeBrush } from './brushRaster'
 import { Program, Target, type AnyCanvas, type TargetFormat } from './gl'
 import type { RenderState } from './protocol'
 
@@ -33,6 +36,12 @@ export class Renderer {
   private blur: Program
   private final: Program
   private cleanup: Program
+  private maskProg: Program
+  private masksTex: WebGLTexture | null = null
+  private maskFbo: WebGLFramebuffer | null = null
+  private maskKey = ''
+  private overlayIdx = -1
+  private brushTex = new Map<string, { tex: WebGLTexture; sig: string }>()
 
   private src: WebGLTexture | null = null
   imgW = 0
@@ -83,6 +92,8 @@ export class Renderer {
     this.blur = new Program(gl, blurSrc, 'blur')
     this.final = new Program(gl, finalSrc, 'final')
     this.cleanup = new Program(gl, cleanupSrc, 'cleanup')
+    this.maskProg = new Program(gl, maskSrc, 'mask')
+    this.maskFbo = gl.createFramebuffer()
     this.hist = new Target(gl, HIST_W, HIST_H, 'rgba8')
     this.probe = new Target(gl, 1, 1, 'rgba8')
     this.blank = new Target(gl, 1, 1, this.workFormat)
@@ -140,6 +151,15 @@ export class Renderer {
     this.blurL = new Target(g, qw, qh, f)
     this.blurR = new Target(g, w, h, f)
     this.nrT = new Target(g, w, h, f)
+    if (this.masksTex) g.deleteTexture(this.masksTex)
+    this.masksTex = g.createTexture()!
+    g.bindTexture(g.TEXTURE_2D_ARRAY, this.masksTex)
+    g.texStorage3D(g.TEXTURE_2D_ARRAY, 1, g.R8, w, h, MAX_MASKS)
+    g.texParameteri(g.TEXTURE_2D_ARRAY, g.TEXTURE_MIN_FILTER, g.LINEAR)
+    g.texParameteri(g.TEXTURE_2D_ARRAY, g.TEXTURE_MAG_FILTER, g.LINEAR)
+    g.texParameteri(g.TEXTURE_2D_ARRAY, g.TEXTURE_WRAP_S, g.CLAMP_TO_EDGE)
+    g.texParameteri(g.TEXTURE_2D_ARRAY, g.TEXTURE_WRAP_T, g.CLAMP_TO_EDGE)
+    this.maskKey = ''
     if (rerender && this.lastState) this.render(this.lastState)
   }
 
@@ -148,7 +168,164 @@ export class Renderer {
     for (const t of [this.work, this.tmpS, this.blurS, this.q1, this.q2, this.qTmp, this.blurL, this.blurR, this.nrT, this.hist, this.probe, this.blank]) t?.dispose()
     for (const tex of this.curveCache.values()) this.gl.deleteTexture(tex)
     this.curveCache.clear()
-    for (const p of [this.geometry, this.blit, this.blur, this.final, this.cleanup]) p.dispose()
+    if (this.masksTex) this.gl.deleteTexture(this.masksTex)
+    if (this.maskFbo) this.gl.deleteFramebuffer(this.maskFbo)
+    for (const b of this.brushTex.values()) this.gl.deleteTexture(b.tex)
+    this.brushTex.clear()
+    for (const p of [this.geometry, this.blit, this.blur, this.final, this.cleanup, this.maskProg]) p.dispose()
+  }
+
+  /** Uniforms shared by the geometry and mask passes (see geomMap.glsl). */
+  private geomUniforms(p: Program, state: RenderState, cx: number, cy: number) {
+    const { w, h } = this.size
+    const c = state.params.crop
+    const tf = state.params.transform
+    const W = this.imgW
+    const H = this.imgH
+    p.f2('uSize', w, h)
+      .f2('uImg', W, H)
+      .f2('uC', cx, cy)
+      .f1('uAngle', (c.angle * Math.PI) / 180)
+      .f1('uZoom', state.zoom)
+      .f2('uPan', state.pan[0], state.pan[1])
+      .f1('uKv', (tf.vertical / 100) * 0.35)
+      .f1('uKh', (tf.horizontal / 100) * 0.35)
+      .f1('uScale', tf.scale / 100)
+      .f1('uAspect', tf.aspect / 100)
+      .f2('uOff', (tf.xOffset / 100) * W * 0.5, (tf.yOffset / 100) * H * 0.5)
+      .f1('uDist', (state.params.lens.distortion / 100) * 0.35)
+  }
+
+  private retouchUniforms(params: EditParams) {
+    const W = this.imgW
+    const H = this.imgH
+    const L = Math.max(W, H)
+    const g = this.geometry
+    const spots = params.spots.slice(0, MAX_SPOTS)
+    g.i1('uSpotN', spots.length)
+    if (spots.length) {
+      g.f4v('uSpotA', spots.flatMap((s) => [s.x * W, s.y * H, s.sx * W, s.sy * H]))
+      g.f4v('uSpotB', spots.flatMap((s) => [s.radius * L, s.feather / 100, s.opacity / 100, s.mode === 'clone' ? 1 : 0]))
+    }
+    const reds = params.redEyes.slice(0, MAX_REDEYES)
+    g.i1('uRedN', reds.length)
+    if (reds.length) {
+      g.f4v('uRedA', reds.flatMap((r) => [r.x * W, r.y * H, r.radius * L, r.pupil / 100]))
+      g.f4v('uRedB', reds.flatMap((r) => [r.darken / 100, 0, 0, 0]))
+    }
+  }
+
+  /** Texture holding the painted bitmap of a brush component (re-rasterised when its strokes change). */
+  private brushTexture(c: Extract<MaskComponent, { kind: 'brush' }>): WebGLTexture {
+    const last = c.strokes[c.strokes.length - 1]
+    const sig = `${c.strokes.length}:${last?.points.length ?? 0}:${last ? last.points[last.points.length - 1] : ''}:${c.strokes.reduce((a, s) => a + s.points.length, 0)}`
+    const hit = this.brushTex.get(c.id)
+    if (hit && hit.sig === sig) return hit.tex
+    const gl = this.gl
+    const bmp = rasterizeBrush(c.strokes, this.imgW, this.imgH)
+    const tex = hit?.tex ?? gl.createTexture()!
+    gl.bindTexture(gl.TEXTURE_2D, tex)
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, bmp.canvas)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    this.brushTex.set(c.id, { tex, sig })
+    this.maskKey = '' // force mask layers to be redrawn
+    return tex
+  }
+
+  /** Render every visible mask into its layer of the mask array (skipped when nothing relevant changed). */
+  private renderMasks(state: RenderState, visible: Mask[], cx: number, cy: number) {
+    const gl = this.gl
+    const { w, h } = this.size
+    const p = state.params
+    // drop textures of brush components that no longer exist
+    const live = new Set(visible.flatMap((m) => m.components.filter((c) => c.kind === 'brush').map((c) => c.id)))
+    for (const [id, b] of this.brushTex) {
+      if (!live.has(id)) {
+        gl.deleteTexture(b.tex)
+        this.brushTex.delete(id)
+      }
+    }
+    const geomKey = JSON.stringify([w, h, state.zoom, state.pan, this.imgW, this.imgH, cx, cy, p.crop.angle, p.transform, p.lens, p.spots, p.redEyes, state.cropEdit])
+    // brush bitmaps first (they can invalidate the key)
+    const brushes = new Map<string, WebGLTexture>()
+    for (const m of visible) for (const c of m.components) if (c.kind === 'brush') brushes.set(c.id, this.brushTexture(c))
+    const key = `${geomKey}#${visible.map(maskShapeKey).join('~')}`
+    if (key === this.maskKey) return
+    this.maskKey = key
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.maskFbo)
+    gl.viewport(0, 0, w, h)
+    const mp = this.maskProg.use().i1('uWork', 0).i1('uBrush0', 1).i1('uBrush1', 2).i1('uBrush2', 3).i1('uBrush3', 4)
+    this.geomUniforms(mp, state, cx, cy)
+    this.tex(0, this.work!.tex)
+    const L = Math.max(this.imgW, this.imgH)
+    visible.forEach((m, layer) => {
+      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, this.masksTex, 0, layer)
+      const comps = m.components.slice(0, 12)
+      const kind: number[] = []
+      const op: number[] = []
+      const inv: number[] = []
+      const p0: number[] = []
+      const p1: number[] = []
+      let slot = 0
+      const bound: (WebGLTexture | null)[] = [null, null, null, null]
+      for (const c of comps) {
+        op.push(c.op === 'add' ? 0 : c.op === 'subtract' ? 1 : 2)
+        inv.push(c.invert ? 1 : 0)
+        switch (c.kind) {
+          case 'brush': {
+            const s = Math.min(slot++, 3)
+            bound[s] = brushes.get(c.id) ?? null
+            kind.push(1)
+            p0.push(s, 0, 0, 0)
+            p1.push(0, 0, 0, 0)
+            break
+          }
+          case 'linear':
+            kind.push(2)
+            p0.push(c.x0 * this.imgW, c.y0 * this.imgH, c.x1 * this.imgW, c.y1 * this.imgH)
+            p1.push(0, 0, 0, 0)
+            break
+          case 'radial':
+            kind.push(3)
+            p0.push(c.cx * this.imgW, c.cy * this.imgH, c.rx * L, c.ry * L)
+            p1.push(c.angle, c.feather / 100, 0, 0)
+            break
+          case 'luminance':
+            kind.push(4)
+            p0.push(c.lo, c.hi, c.smooth, 0)
+            p1.push(0, 0, 0, 0)
+            break
+          case 'color':
+            kind.push(5)
+            p0.push(c.r, c.g, c.b, 0)
+            p1.push(c.range / 100, 0, 0, 0)
+            break
+        }
+      }
+      while (kind.length < 12) {
+        kind.push(0)
+        op.push(0)
+        inv.push(0)
+        p0.push(0, 0, 0, 0)
+        p1.push(0, 0, 0, 0)
+      }
+      mp.i1('uN', comps.length).i1v('uKind', kind).i1v('uOp', op).i1v('uInv', inv).f4v('uP0', p0).f4v('uP1', p1).i1('uMaskInv', m.invert ? 1 : 0).f1('uAmount', m.amount / 100)
+      for (let i = 0; i < 4; i++) this.tex(1 + i, bound[i] ?? this.tex0())
+      this.draw()
+    })
+    // detach the layer so later passes can sample the array
+    gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, null, 0, 0)
+  }
+
+  /** A valid (empty) texture to keep unused sampler slots legal. */
+  private tex0(): WebGLTexture {
+    return this.blank.tex
   }
 
   // ---- drawing -----------------------------------------------------------------------------
@@ -252,6 +429,27 @@ export class Renderer {
     const d = pr.detail
     p.f1('uSharpAmt', d.sharpAmount / 150).f1('uSharpDetail', d.sharpDetail / 100).f1('uSharpMask', d.sharpMasking / 100)
 
+    const local = pr.masks.filter((m) => m.visible).slice(0, MAX_MASKS)
+    p.i1('uMaskN', local.length).i1('uOverlay', this.overlayIdx)
+    if (local.length) {
+      const pad = <T,>(a: T[], n: number, z: T) => [...a, ...Array<T>(Math.max(0, n - a.length)).fill(z)]
+      p.f4v('uLocA', pad(local.flatMap((m) => [m.adjust.contrast / 100, m.adjust.highlights / 100, m.adjust.shadows / 100, m.adjust.saturation / 100]), 48, 0))
+      p.f4v('uLocB', pad(local.flatMap((m) => [m.adjust.texture / 100, m.adjust.clarity / 100, m.adjust.dehaze / 100, m.adjust.sharpness / 100]), 48, 0))
+      p.f4v('uLocC', pad(local.flatMap((m) => [Math.max(0, m.adjust.noise) / 100, 0, 0, 0]), 48, 0))
+      p.f3v(
+        'uLocGain',
+        pad(
+          local.flatMap((m) => {
+            const [a, b, c2] = wbGains(m.adjust.temp, m.adjust.tint)
+            const k = 2 ** m.adjust.exposure
+            return [a * k, b * k, c2 * k]
+          }),
+          36,
+          1,
+        ),
+      )
+    }
+
     const e = pr.effects
     p.f1('uVigAmt', e.vigAmount / 100)
       .f1('uVigMid', e.vigMid / 100)
@@ -287,6 +485,12 @@ export class Renderer {
     this.tex(2, (this.blurL ?? this.work)!.tex)
     this.tex(3, (this.blurR ?? this.work)!.tex)
     this.tex(4, this.curveTexture(pr))
+    if (this.masksTex) {
+      const gl = this.gl
+      gl.activeTexture(gl.TEXTURE5)
+      gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.masksTex)
+      this.final.i1('uMasks', 5)
+    }
     this.draw()
   }
 
@@ -316,25 +520,9 @@ export class Renderer {
       hy = fh / 2
     }
     this.bindTarget(this.work, w, h)
-    this.geometry
-      .use()
-      .i1('uSrc', 0)
-      .f2('uSize', w, h)
-      .f2('uImg', W, H)
-      .f2('uC', cx, cy)
-      .f2('uHalf', hx, hy)
-      .f1('uAngle', (c.angle * Math.PI) / 180)
-      .f1('uZoom', state.zoom)
-      .f2('uPan', state.pan[0], state.pan[1])
-      .f1('uKv', tf.vertical / 100 * 0.35)
-      .f1('uKh', tf.horizontal / 100 * 0.35)
-      .f1('uScale', tf.scale / 100)
-      .f1('uAspect', tf.aspect / 100)
-      .f2('uOff', (tf.xOffset / 100) * W * 0.5, (tf.yOffset / 100) * H * 0.5)
-      .f1('uDist', (state.params.lens.distortion / 100) * 0.35)
-      .f1('uVigFix', state.params.lens.vignette / 100)
-      .f1('uVigMid', state.params.lens.vignetteMid / 100)
-      .f1('uBleed', state.bleed ?? 0)
+    this.geometry.use().i1('uSrc', 0).f2('uHalf', hx, hy).f1('uVigFix', state.params.lens.vignette / 100).f1('uVigMid', state.params.lens.vignetteMid / 100).f1('uBleed', state.bleed ?? 0).f1('uLod', Math.max(0, Math.log2(1 / (state.zoom * (tf.scale / 100)))))
+    this.geomUniforms(this.geometry, state, cx, cy)
+    this.retouchUniforms(state.params)
     this.tex(0, this.src)
     this.draw()
     this.frame = { zoom: state.zoom, pan: state.pan, half: [hx, hy] }
@@ -357,6 +545,11 @@ export class Renderer {
       source = this.nrT!
     }
     this.workTex = source.tex
+
+    // 2b. local-adjustment masks
+    const visible = state.params.masks.filter((m) => m.visible).slice(0, MAX_MASKS)
+    this.overlayIdx = state.overlayMaskId ? visible.findIndex((m) => m.id === state.overlayMaskId) : -1
+    if (visible.length) this.renderMasks(state, visible, cx, cy)
 
     // 3. blurs (only when a presence / sharpening control is active)
     if (needs.blurSmall) {

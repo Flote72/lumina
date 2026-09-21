@@ -96,7 +96,7 @@ function CropBar() {
 
 export function DevelopToolbar({ zoomPct }: { zoomPct: number }) {
   const t = useT()
-  const { zoomMode, setZoomMode, compare, setCompare, clipping, toggleClipping, cropEdit } = useDevelop()
+  const { zoomMode, setZoomMode, compare, setCompare, clipping, toggleClipping, cropEdit, tool, setTool } = useDevelop()
   const enabled = canCrop()
 
   return (
@@ -107,6 +107,15 @@ export function DevelopToolbar({ zoomPct }: { zoomPct: number }) {
         <>
           <Button variant="ghost" active={false} onClick={toggleCrop} disabled={!enabled} title={t('toolbar.crop')}>
             {t('toolbar.crop')}
+          </Button>
+          <Button variant="ghost" active={tool === 'mask'} onClick={() => setTool(tool === 'mask' ? null : 'mask')} disabled={!enabled} title={t('panel.masking')}>
+            {t('tool.mask')}
+          </Button>
+          <Button variant="ghost" active={tool === 'spot'} onClick={() => setTool(tool === 'spot' ? null : 'spot')} disabled={!enabled} title={t('tool.spot')}>
+            {t('spot.title')}
+          </Button>
+          <Button variant="ghost" active={tool === 'redeye'} onClick={() => setTool(tool === 'redeye' ? null : 'redeye')} disabled={!enabled} title={t('tool.redeye')}>
+            {t('red.title')}
           </Button>
           <span className="h-4 w-px bg-line" />
           <Button variant="ghost" active={compare.mode === 'before'} onClick={() => setCompare(compare.mode === 'before' ? 'off' : 'before')} title={t('toolbar.compare')} disabled={!enabled}>

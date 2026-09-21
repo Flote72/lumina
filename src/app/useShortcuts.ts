@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { cancelCrop, applyCrop, flipCropRatio, toggleCrop } from '@/develop/cropActions'
+import { removeMask, removeRedEye, removeSpot, startMask } from '@/develop/local/maskActions'
 import { useDevelop } from '@/store/develop'
 import { useClipboard } from '@/store/clipboard'
 import { getVisibleIds, LABELS, setFlag, setRating, targetIds, toggleLabel, useLibrary } from '@/store/library'
@@ -61,6 +62,47 @@ export function useShortcuts() {
       }
 
       const develop = ui.module === 'develop'
+      const canLocal = develop && !dev.cropEdit && !!usePhotos.getState().currentId && dev.loadedId === usePhotos.getState().currentId
+
+      // local tools (Lightroom-like): K brush, M linear, ⇧M radial, Q spot, ⇧E red-eye, O overlay, Del delete
+      if (canLocal && key === 'e' && e.shiftKey) {
+        dev.setTool(dev.tool === 'redeye' ? null : 'redeye')
+        return
+      }
+      if (canLocal && key === 'm') {
+        startMask(e.shiftKey ? 'radial' : 'linear')
+        return
+      }
+      if (canLocal && key === 'k') {
+        startMask('brush')
+        return
+      }
+      if (canLocal && key === 'q') {
+        dev.setTool(dev.tool === 'spot' ? null : 'spot')
+        return
+      }
+      if (canLocal && dev.tool === 'mask' && key === 'o') {
+        dev.setOverlay(!dev.overlay)
+        return
+      }
+      if (canLocal && dev.tool && (key === 'delete' || key === 'backspace')) {
+        e.preventDefault()
+        if (dev.tool === 'mask' && dev.maskSel) removeMask(dev.maskSel)
+        else if (dev.tool === 'spot' && dev.spotSel) removeSpot(dev.spotSel)
+        else if (dev.tool === 'redeye' && dev.redSel) removeRedEye(dev.redSel)
+        return
+      }
+      if (canLocal && dev.tool && (e.key === '[' || e.key === ']')) {
+        const f = e.key === ']' ? 1.15 : 1 / 1.15
+        if (dev.tool === 'mask') dev.setBrush({ size: Math.min(0.4, Math.max(0.005, dev.brush.size * f)) })
+        else if (dev.tool === 'spot') dev.setSpot({ radius: Math.min(0.12, Math.max(0.004, dev.spot.radius * f)) })
+        return
+      }
+      if (dev.tool && key === 'escape') {
+        if (dev.maskDraw) dev.setMaskDraw(null)
+        else dev.setTool(null)
+        return
+      }
       switch (key) {
         case 'g':
         case 'e':

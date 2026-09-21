@@ -1,4 +1,5 @@
 import vertSrc from './shaders/fullscreen.vert.glsl?raw'
+import geomMap from './shaders/geomMap.glsl?raw'
 
 export type AnyCanvas = HTMLCanvasElement | OffscreenCanvas
 
@@ -17,7 +18,7 @@ export class Program {
       return sh
     }
     const vs = compile(gl.VERTEX_SHADER, vertSrc)
-    const fs = compile(gl.FRAGMENT_SHADER, fragSrc)
+    const fs = compile(gl.FRAGMENT_SHADER, fragSrc.replace('//#include geomMap', geomMap))
     this.prog = gl.createProgram()!
     gl.attachShader(this.prog, vs)
     gl.attachShader(this.prog, fs)
@@ -51,6 +52,14 @@ export class Program {
   }
   f1v(n: string, v: number[]) {
     this.gl.uniform1fv(this.loc(`${n}[0]`), v)
+    return this
+  }
+  i1v(n: string, v: number[]) {
+    this.gl.uniform1iv(this.loc(`${n}[0]`), v)
+    return this
+  }
+  f4v(n: string, v: number[]) {
+    this.gl.uniform4fv(this.loc(`${n}[0]`), v)
     return this
   }
   f3v(n: string, v: number[]) {

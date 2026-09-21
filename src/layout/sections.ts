@@ -5,7 +5,7 @@ export interface SectionDef {
   id: string
   title: TKey
   /** Phase in which the section's real content is implemented. */
-  phase: 1 | 2 | 3 | 4
+  phase: 1 | 2 | 3 | 4 | 5
 }
 
 export const LEFT_SECTIONS: Record<ModuleId, SectionDef[]> = {
@@ -29,6 +29,8 @@ export const RIGHT_SECTIONS: Record<ModuleId, SectionDef[]> = {
   ],
   develop: [
     { id: 'histogram', title: 'panel.histogram', phase: 1 },
+    { id: 'masking', title: 'panel.masking', phase: 4 },
+    { id: 'retouch', title: 'panel.retouch', phase: 4 },
     { id: 'basic', title: 'panel.basic', phase: 1 },
     { id: 'toneCurve', title: 'panel.toneCurve', phase: 2 },
     { id: 'colorMixer', title: 'panel.colorMixer', phase: 2 },
