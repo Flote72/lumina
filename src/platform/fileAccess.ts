@@ -4,7 +4,7 @@
  */
 
 const IMAGE_EXT = new Set(['jpg', 'jpeg', 'png', 'webp', 'avif', 'heic', 'heif', 'gif', 'bmp'])
-export const RAW_EXT = new Set(['cr2', 'cr3', 'nef', 'arw', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'x3f'])
+export const RAW_EXT = new Set(['cr2', 'cr3', 'crw', 'nef', 'nrw', 'arw', 'sr2', 'dng', 'raf', 'orf', 'rw2', 'pef', 'srw', 'x3f', '3fr', 'erf', 'mrw', 'kdc', 'dcr', 'iiq'])
 
 const ext = (name: string) => name.split('.').pop()?.toLowerCase() ?? ''
 
@@ -27,7 +27,7 @@ export function splitFiles(files: File[]): FileSplit {
   return { images, raw, skipped }
 }
 
-export const ACCEPT = 'image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif'
+export const ACCEPT = `image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.avif,.heic,.heif,${[...RAW_EXT].map((e) => `.${e}`).join(',')}`
 
 function inputPick(opts: { multiple?: boolean; directory?: boolean }): Promise<File[]> {
   return new Promise((resolve) => {

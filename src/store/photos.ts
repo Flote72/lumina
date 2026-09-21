@@ -6,6 +6,7 @@ import { translate } from '@/i18n'
 import { deleteOriginal, readOriginal, saveOriginal } from '@/platform/originals'
 import { splitFiles } from '@/platform/fileAccess'
 import { makeThumbnail } from '@/workers/thumbs'
+import { developRaw } from '@/raw/developRaw'
 import { useToastStore } from './toast'
 import { useUiStore } from './ui'
 
@@ -134,12 +135,13 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
     const lang = useUiStore.getState().lang
     const toast = useToastStore.getState().push
     const { images, raw, skipped } = splitFiles(files)
-    if (raw.length) toast(translate(lang, 'import.rawUnsupported', { n: raw.length }), 'error')
     if (skipped) toast(translate(lang, 'import.skipped', { n: skipped }))
-    if (!images.length) return
+    const all = [...images, ...raw]
+    if (!all.length) return
+    const rawSet = new Set(raw)
 
     const now = Date.now()
-    const added: Photo[] = images.map((file, i) => ({
+    const added: Photo[] = all.map((file, i) => ({
       id: crypto.randomUUID(),
       name: file.name,
       size: file.size,
@@ -159,6 +161,7 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
       fNumber: null,
       focalLength: null,
       hasEdits: false,
+      raw: rawSet.has(file) || undefined,
       exif: null,
       thumbUrl: null,
       status: 'loading',
@@ -179,14 +182,27 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
     useUiStore.getState().setModule('develop')
 
     // Process a few at a time: copy original → EXIF → decode/thumbnail → catalog row
-    added.forEach((p, i) => pendingFiles.set(p.id, images[i]!))
-    const queue = added.map((p, i) => ({ p, file: images[i]! }))
+    added.forEach((p, i) => {
+      if (!p.raw) pendingFiles.set(p.id, all[i]!)
+    })
+    const queue = added.map((p, i) => ({ p, file: all[i]! }))
     const worker = async () => {
       for (let job = queue.shift(); job; job = queue.shift()) {
         const { p, file } = job
         try {
-          const [exif, thumb] = await Promise.all([readExif(file), makeThumbnail(p.id, file)])
+          let editable: File = file
+          let rawMethod: PhotoRow['rawMethod']
+          if (p.raw) {
+            // RAW: keep the original as-is, edit a developed 8-bit sRGB copy
+            const dev = await developRaw(file)
+            rawMethod = dev.method
+            editable = new File([dev.blob], `${p.name}.${dev.method === 'libraw' ? 'png' : 'jpg'}`, { type: dev.blob.type })
+            pendingFiles.set(p.id, editable)
+            if (dev.method === 'preview') toast(translate(useUiStore.getState().lang, 'import.rawPreview', { name: p.name }))
+          }
+          const [exif, thumb] = await Promise.all([readExif(file), makeThumbnail(p.id, editable)])
           await saveOriginal(p.id, file)
+          if (p.raw) await saveOriginal(`${p.id}.dev`, editable)
           pendingFiles.delete(p.id)
           const row: PhotoRow = {
             ...toRow(p),
@@ -200,6 +216,7 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
             fNumber: exif.fNumber,
             focalLength: exif.focalLength,
             exif: exif.raw,
+            ...(p.raw ? { raw: true, rawMethod } : {}),
           }
           await db.photos.put(row)
           await db.thumbs.put({ id: p.id, blob: thumb.thumb })
@@ -228,6 +245,7 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
     if (!p) throw new Error('Unknown photo')
     const pending = pendingFiles.get(id)
     if (pending) return pending
+    if (p.raw) return readOriginal(`${id}.dev`, `${p.name}.png`, p.rawMethod === 'preview' ? 'image/jpeg' : 'image/png')
     return readOriginal(id, p.name, p.mime)
   },
 
@@ -246,6 +264,7 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
       const u = get().photos[id]?.thumbUrl
       if (u) URL.revokeObjectURL(u)
       await deleteOriginal(id)
+      await deleteOriginal(`${id}.dev`)
     }
     await db.transaction('rw', ['photos', 'thumbs', 'edits', 'history', 'snapshots', 'collectionItems'], async () => {
       await db.photos.bulkDelete(ids)

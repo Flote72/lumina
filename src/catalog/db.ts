@@ -24,6 +24,9 @@ export interface PhotoRow {
   fNumber: number | null
   focalLength: number | null
   hasEdits: boolean
+  /** RAW file: the editing pipeline works from a developed copy (see raw/developRaw.ts) */
+  raw?: boolean
+  rawMethod?: 'libraw' | 'preview'
   exif: Record<string, unknown> | null
 }
 

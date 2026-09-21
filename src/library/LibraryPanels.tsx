@@ -130,6 +130,7 @@ export function MetadataPanel() {
         <Row k={t('meta.exposure')} v={exposure} />
         <Row k={t('meta.iso')} v={cur.iso ? String(cur.iso) : ''} />
         <Row k={t('meta.focal')} v={cur.focalLength ? `${Math.round(cur.focalLength)} mm` : ''} />
+        <Row k={t('meta.raw')} v={cur.raw ? t(cur.rawMethod === 'preview' ? 'meta.rawPreview' : 'meta.rawLibraw') : ''} />
       </dl>
       {!cur.camera && !cur.iso && !cur.capturedAt && <p className="px-3 py-1 text-xs text-fg-2">{t('meta.none')}</p>}
 

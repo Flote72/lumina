@@ -450,6 +450,10 @@ export const ko = {
   'red.hint': '눈을 클릭하면 붉은 영역을 찾아 보정합니다. 원을 끌어 이동, 가장자리 핸들로 크기 조정',
   'red.list': '적목 {n}개',
   'red.delete': '삭제',
+  'import.rawPreview': '"{name}": LibRaw로 현상하지 못해 RAW 안의 미리보기 JPEG로 편집합니다.',
+  'meta.raw': 'RAW 현상',
+  'meta.rawLibraw': 'LibRaw (카메라 화이트밸런스, 8비트 sRGB)',
+  'meta.rawPreview': '내장 미리보기 JPEG',
 } as const
 
 export type TKey = keyof typeof ko

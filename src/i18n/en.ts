@@ -452,4 +452,8 @@ export const en: Record<TKey, string> = {
   'red.hint': 'Click an eye; the red area is detected and corrected. Drag to move, use the handle to resize.',
   'red.list': '{n} red-eye fix(es)',
   'red.delete': 'Delete',
+  'import.rawPreview': '"{name}": LibRaw could not develop this file, so its embedded preview JPEG is used.',
+  'meta.raw': 'RAW development',
+  'meta.rawLibraw': 'LibRaw (camera white balance, 8-bit sRGB)',
+  'meta.rawPreview': 'Embedded preview JPEG',
 }
