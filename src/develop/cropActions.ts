@@ -1,3 +1,4 @@
+import { cropToFrameRect, fitInside, frameRectToCrop } from '@/core/geometry/crop'
 import { useDevelop } from '@/store/develop'
 import { usePhotos } from '@/store/photos'
 
@@ -35,4 +36,15 @@ export function cancelCrop() {
 export function toggleCrop() {
   if (useDevelop.getState().cropEdit) applyCrop()
   else enterCrop()
+}
+
+/** Set the straighten angle, shrinking the crop so it never leaves the image. */
+export function setCropAngle(angle: number) {
+  const c = current()
+  if (!c) return
+  const { width: W, height: H } = c.photo
+  usePhotos.getState().edit((p) => {
+    const next = fitInside(cropToFrameRect(p.crop, W, H), angle, W, H)
+    return { ...p, crop: frameRectToCrop(next, angle, p.crop.ratio, W, H) }
+  })
 }

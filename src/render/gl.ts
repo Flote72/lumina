@@ -49,6 +49,14 @@ export class Program {
     this.gl.uniform3f(this.loc(n), x, y, z)
     return this
   }
+  f1v(n: string, v: number[]) {
+    this.gl.uniform1fv(this.loc(`${n}[0]`), v)
+    return this
+  }
+  f3v(n: string, v: number[]) {
+    this.gl.uniform3fv(this.loc(`${n}[0]`), v)
+    return this
+  }
   i1(n: string, v: number) {
     this.gl.uniform1i(this.loc(n), v)
     return this

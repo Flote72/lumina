@@ -1,8 +1,11 @@
-import { needsBlur, type BasicParams } from '@/core/params/params'
+import { buildCurveLUT, isIdentityCurve } from '@/core/curve/curve'
+import { gradingActive, wheelOffset } from '@/core/color/grading'
+import { MIXER_COLORS, passNeeds, type EditParams } from '@/core/params/params'
 import { wbGains } from '@/core/color/whiteBalance'
 import { frameSize } from '@/core/geometry/crop'
 import blitSrc from './shaders/blit.frag.glsl?raw'
 import blurSrc from './shaders/blur.frag.glsl?raw'
+import cleanupSrc from './shaders/cleanup.frag.glsl?raw'
 import finalSrc from './shaders/final.frag.glsl?raw'
 import geometrySrc from './shaders/geometry.frag.glsl?raw'
 import { Program, Target, type AnyCanvas, type TargetFormat } from './gl'
@@ -29,6 +32,7 @@ export class Renderer {
   private blit: Program
   private blur: Program
   private final: Program
+  private cleanup: Program
 
   private src: WebGLTexture | null = null
   imgW = 0
@@ -42,6 +46,11 @@ export class Renderer {
   private q2: Target | null = null
   private qTmp: Target | null = null
   private blurL: Target | null = null
+  private blurR: Target | null = null
+  private nrT: Target | null = null
+  private workTex: WebGLTexture | null = null
+  private curveCache = new Map<string, WebGLTexture>()
+  private frame = { zoom: 1, pan: [0, 0] as [number, number], half: [1, 1] as [number, number] }
   private hist: Target
   private probe: Target
   private blank: Target
@@ -73,6 +82,7 @@ export class Renderer {
     this.blit = new Program(gl, blitSrc, 'blit')
     this.blur = new Program(gl, blurSrc, 'blur')
     this.final = new Program(gl, finalSrc, 'final')
+    this.cleanup = new Program(gl, cleanupSrc, 'cleanup')
     this.hist = new Target(gl, HIST_W, HIST_H, 'rgba8')
     this.probe = new Target(gl, 1, 1, 'rgba8')
     this.blank = new Target(gl, 1, 1, this.workFormat)
@@ -116,7 +126,7 @@ export class Renderer {
     this.canvas.width = w
     this.canvas.height = h
     this.size = { w, h }
-    for (const t of [this.work, this.tmpS, this.blurS, this.q1, this.q2, this.qTmp, this.blurL]) t?.dispose()
+    for (const t of [this.work, this.tmpS, this.blurS, this.q1, this.q2, this.qTmp, this.blurL, this.blurR, this.nrT]) t?.dispose()
     const f = this.workFormat
     const g = this.gl
     const qw = Math.max(1, Math.ceil(w / 4))
@@ -128,13 +138,17 @@ export class Renderer {
     this.q2 = new Target(g, qw, qh, f)
     this.qTmp = new Target(g, qw, qh, f)
     this.blurL = new Target(g, qw, qh, f)
+    this.blurR = new Target(g, w, h, f)
+    this.nrT = new Target(g, w, h, f)
     if (this.lastState) this.render(this.lastState)
   }
 
   dispose() {
     this.clearSource()
-    for (const t of [this.work, this.tmpS, this.blurS, this.q1, this.q2, this.qTmp, this.blurL, this.hist, this.probe, this.blank]) t?.dispose()
-    for (const p of [this.geometry, this.blit, this.blur, this.final]) p.dispose()
+    for (const t of [this.work, this.tmpS, this.blurS, this.q1, this.q2, this.qTmp, this.blurL, this.blurR, this.nrT, this.hist, this.probe, this.blank]) t?.dispose()
+    for (const tex of this.curveCache.values()) this.gl.deleteTexture(tex)
+    this.curveCache.clear()
+    for (const p of [this.geometry, this.blit, this.blur, this.final, this.cleanup]) p.dispose()
   }
 
   // ---- drawing -----------------------------------------------------------------------------
@@ -174,8 +188,33 @@ export class Renderer {
     this.draw()
   }
 
-  private setFinalUniforms(b: BasicParams, clip: boolean) {
+  /** 256×1 LUT texture for a tone-curve setting (cached by content). */
+  private curveTexture(p: EditParams): WebGLTexture {
+    const key = JSON.stringify(p.toneCurve)
+    const hit = this.curveCache.get(key)
+    if (hit) return hit
+    const gl = this.gl
+    const tex = gl.createTexture()!
+    gl.bindTexture(gl.TEXTURE_2D, tex)
+    gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 256, 1)
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RGBA, gl.UNSIGNED_BYTE, buildCurveLUT(p.toneCurve))
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    if (this.curveCache.size > 8) {
+      const first = this.curveCache.keys().next().value as string
+      gl.deleteTexture(this.curveCache.get(first)!)
+      this.curveCache.delete(first)
+    }
+    this.curveCache.set(key, tex)
+    return tex
+  }
+
+  private setFinalUniforms(pr: EditParams, clip: boolean) {
     const p = this.final
+    const b = pr.basic
     const [gr, gg, gb] = wbGains(b.temp, b.tint)
     const ev = 2 ** b.exposure
     p.f3('uGain', gr * ev, gg * ev, gb * ev)
@@ -190,16 +229,61 @@ export class Renderer {
       .f1('uVibrance', b.vibrance / 100)
       .f1('uSaturation', b.saturation / 100)
       .i1('uClip', clip ? 1 : 0)
+
+    p.i1('uCurveOn', isIdentityCurve(pr.toneCurve) ? 0 : 1)
+
+    const m = pr.mixer
+    const anyMix = MIXER_COLORS.some((c) => m.hue[c] || m.sat[c] || m.lum[c])
+    p.i1('uMixOn', anyMix ? 1 : 0)
+    p.f1v('uMixHue', MIXER_COLORS.map((c) => m.hue[c] / 100))
+    p.f1v('uMixSat', MIXER_COLORS.map((c) => m.sat[c] / 100))
+    p.f1v('uMixLum', MIXER_COLORS.map((c) => m.lum[c] / 100))
+
+    const g = pr.grading
+    const wheels = [g.shadows, g.midtones, g.highlights, g.global].map(wheelOffset)
+    p.i1('uGradeOn', gradingActive(g) ? 1 : 0)
+    p.f3v('uGradeCol', wheels.flatMap((w) => w.chroma))
+    p.f1v('uGradeLum', wheels.map((w) => w.lum))
+    p.f1('uBlend', g.blending / 100).f1('uBalance', g.balance / 100)
+
+    const d = pr.detail
+    p.f1('uSharpAmt', d.sharpAmount / 150).f1('uSharpDetail', d.sharpDetail / 100).f1('uSharpMask', d.sharpMasking / 100)
+
+    const e = pr.effects
+    p.f1('uVigAmt', e.vigAmount / 100)
+      .f1('uVigMid', e.vigMid / 100)
+      .f1('uVigRound', e.vigRound / 100)
+      .f1('uVigFeather', e.vigFeather / 100)
+      .f1('uGrainAmt', e.grainAmount / 100)
+      .f1('uGrainSize', e.grainSize / 100)
+      .f1('uGrainRough', e.grainRough / 100)
   }
 
   /** Final pass into `target` (null = canvas). uv = uvOffset + fragCoord/size * uvScale. */
-  private finalPass(b: BasicParams, target: Target | null, w: number, h: number, uvOff: [number, number], uvScale: [number, number], clip: boolean) {
+  private finalPass(pr: EditParams, target: Target | null, w: number, h: number, uvOff: [number, number], uvScale: [number, number], clip: boolean) {
     this.bindTarget(target, w, h)
-    this.final.use().i1('uWork', 0).i1('uBlurS', 1).i1('uBlurL', 2).f2('uSize', w, h).f2('uUvOffset', ...uvOff).f2('uUvScale', ...uvScale)
-    this.setFinalUniforms(b, clip)
-    this.tex(0, this.work!.tex)
+    const f = this.frame
+    this.final
+      .use()
+      .i1('uWork', 0)
+      .i1('uBlurS', 1)
+      .i1('uBlurL', 2)
+      .i1('uBlurR', 3)
+      .i1('uCurve', 4)
+      .f2('uSize', w, h)
+      .f2('uUvOffset', ...uvOff)
+      .f2('uUvScale', ...uvScale)
+      .f2('uViewport', this.size.w, this.size.h)
+      .f2('uPan', f.pan[0], f.pan[1])
+      .f1('uZoom', f.zoom)
+      .f2('uHalfFrame', f.half[0], f.half[1])
+    this.setFinalUniforms(pr, clip)
+    const work = this.workTex!
+    this.tex(0, work)
     this.tex(1, (this.blurS ?? this.work)!.tex)
     this.tex(2, (this.blurL ?? this.work)!.tex)
+    this.tex(3, (this.blurR ?? this.work)!.tex)
+    this.tex(4, this.curveTexture(pr))
     this.draw()
   }
 
@@ -214,6 +298,7 @@ export class Renderer {
 
     // 1. geometry
     const c = state.params.crop
+    const tf = state.params.transform
     const W = this.imgW
     const H = this.imgH
     let cx = c.cx * W
@@ -238,28 +323,61 @@ export class Renderer {
       .f1('uAngle', (c.angle * Math.PI) / 180)
       .f1('uZoom', state.zoom)
       .f2('uPan', state.pan[0], state.pan[1])
+      .f1('uKv', tf.vertical / 100 * 0.35)
+      .f1('uKh', tf.horizontal / 100 * 0.35)
+      .f1('uScale', tf.scale / 100)
+      .f1('uAspect', tf.aspect / 100)
+      .f2('uOff', (tf.xOffset / 100) * W * 0.5, (tf.yOffset / 100) * H * 0.5)
+      .f1('uDist', (state.params.lens.distortion / 100) * 0.35)
+      .f1('uVigFix', state.params.lens.vignette / 100)
+      .f1('uVigMid', state.params.lens.vignetteMid / 100)
     this.tex(0, this.src)
     this.draw()
+    this.frame = { zoom: state.zoom, pan: state.pan, half: [hx, hy] }
 
-    // 2. blurs (only when a presence control is active)
-    const nb = needsBlur(state.params.basic)
-    if (nb.small) {
-      this.blurPass(this.work, this.tmpS!, 1, 0, Math.max(0.7, TEXTURE_SIGMA * state.zoom))
-      this.blurPass(this.tmpS!, this.blurS!, 0, 1, Math.max(0.7, TEXTURE_SIGMA * state.zoom))
+    // 2. clean-up (noise reduction / defringe), skipped when zoomed far out where it is invisible
+    const needs = passNeeds(state.params)
+    let source = this.work
+    if (needs.cleanup && state.zoom >= 0.35) {
+      const d = state.params.detail
+      this.bindTarget(this.nrT, w, h)
+      this.cleanup
+        .use()
+        .i1('uTex', 0)
+        .f2('uSize', w, h)
+        .f1('uLum', d.nrLum / 100)
+        .f1('uColor', d.nrColor / 100)
+        .f1('uDefringe', state.params.lens.defringe / 100)
+      this.tex(0, this.work.tex)
+      this.draw()
+      source = this.nrT!
     }
-    if (nb.large) {
-      this.blitPass(this.work, this.q1!)
+    this.workTex = source.tex
+
+    // 3. blurs (only when a presence / sharpening control is active)
+    if (needs.blurSmall) {
+      const sg = Math.max(0.7, TEXTURE_SIGMA * state.zoom)
+      this.blurPass(source, this.tmpS!, 1, 0, sg)
+      this.blurPass(this.tmpS!, this.blurS!, 0, 1, sg)
+    }
+    if (needs.blurSharp) {
+      const sg = Math.max(0.5, state.params.detail.sharpRadius * state.zoom)
+      this.blurPass(source, this.tmpS!, 1, 0, sg)
+      this.blurPass(this.tmpS!, this.blurR!, 0, 1, sg)
+    }
+    if (needs.blurLarge) {
+      this.blitPass(source, this.q1!)
       this.blitPass(this.q1!, this.q2!)
-      const s = Math.max(0.7, (CLARITY_SIGMA * state.zoom) / 4)
-      this.blurPass(this.q2!, this.qTmp!, 1, 0, s)
-      this.blurPass(this.qTmp!, this.blurL!, 0, 1, s)
+      const sg = Math.max(0.7, (CLARITY_SIGMA * state.zoom) / 4)
+      this.blurPass(this.q2!, this.qTmp!, 1, 0, sg)
+      this.blurPass(this.qTmp!, this.blurL!, 0, 1, sg)
     }
 
-    // 3. final → canvas (with optional before/after split via scissor)
+    // 4. final → canvas (with optional before/after split via scissor)
     this.clearCanvas()
     const { mode, pos } = state.compare
-    const after = state.params.basic
-    const before = state.before.basic
+    const after = state.params
+    const before = state.before
     // "before" reuses the same blur textures; its texture/clarity/dehaze are zero so they are unused.
     const full: [number, number] = [0, 0]
     const one: [number, number] = [1, 1]
@@ -292,7 +410,7 @@ export class Renderer {
   readHistogramPixels(): Uint8Array | null {
     const s = this.lastState
     if (!s || !this.work) return null
-    this.finalPass(s.params.basic, this.hist, HIST_W, HIST_H, [0, 0], [1, 1], false)
+    this.finalPass(s.params, this.hist, HIST_W, HIST_H, [0, 0], [1, 1], false)
     const out = new Uint8Array(HIST_W * HIST_H * 4)
     this.gl.readPixels(0, 0, HIST_W, HIST_H, this.gl.RGBA, this.gl.UNSIGNED_BYTE, out)
     return out
@@ -305,7 +423,7 @@ export class Renderer {
     const { w, h } = this.size
     if (x < 0 || y < 0 || x >= w || y >= h) return null
     const uv: [number, number] = [(x + 0.5) / w, 1 - (y + 0.5) / h]
-    this.finalPass(s.params.basic, this.probe, 1, 1, uv, [0, 0], false)
+    this.finalPass(s.params, this.probe, 1, 1, uv, [0, 0], false)
     const px = new Uint8Array(4)
     this.gl.readPixels(0, 0, 1, 1, this.gl.RGBA, this.gl.UNSIGNED_BYTE, px)
     return px[3]! < 128 ? null : [px[0]!, px[1]!, px[2]!]

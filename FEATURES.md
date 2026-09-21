@@ -33,7 +33,27 @@
 - ⬜ Library 그리드/루페는 Phase 3 (현재 Library 탭은 안내 화면, 사진은 필름스트립에서 선택)
 - ⬜ 필름스트립 가상화는 Phase 3 (현재 전체 렌더)
 
-## Phase 2 — ⬜ Tone Curve, Color Mixer(+타겟 툴), Color Grading, Detail, Lens, Transform, Effects
+## Phase 2 — 보정 패널 (✅ 브라우저에서 동작 확인)
+- ✅ Tone Curve: Parametric(Highlights/Lights/Darks/Shadows + 분할점 3개) + Point Curve(RGB/R/G/B), 단조 3차 보간(Fritsch–Carlson, 오버슈트 없음), 점 추가/드래그/더블클릭·Delete 삭제/방향키 미세조정
+- ✅ Color Mixer: HSL 8색(Red~Magenta) 색조/채도/광도, 인접 색 간 부드러운 보간, **타겟 툴**(패널 ⌖ 켜고 이미지 위에서 위/아래 드래그)
+- ✅ Color Grading: Shadows/Midtones/Highlights/Global 컬러휠(드래그·방향키) + Hue/Sat/Lum, Blending, Balance
+- ✅ Detail: Sharpening(Amount/Radius/Detail/Masking), Noise Reduction(Luminance/Color)
+- ✅ Lens Corrections: Distortion, Vignetting 보정(Amount/Midpoint), Defringe
+- ✅ Transform: Vertical/Horizontal(원근), Rotate(=크롭 각도와 동일 값), Scale, Aspect, X/Y Offset, **Auto Level**(에지 방향 분석으로 기울기 자동 보정)
+- ✅ Effects: 포스트 크롭 비네팅(Amount/Midpoint/Roundness/Feather), Grain(Amount/Size/Roughness)
+- ✅ 섹션별 초기화 버튼, 모든 슬라이더 히스토리(Undo/Redo) 연동
+- ✅ 단위 테스트: 커브 보간(단조·무오버슈트·LUT), HSL/컬러 그레이딩, Auto Level
+
+### Phase 2 제한 / 미구현
+- ❌ Transform Auto의 **수직/수평 원근 자동 보정, Full/Guided**: 미구현(선 검출이 필요). Auto Level만 제공
+- ❌ 색수차 수동 보정(Red/Cyan, Blue/Yellow 분리 조정): 미구현. Defringe(보라/초록 프린지 억제)만 제공
+- ❌ Lens Profile 자동 보정: 미구현(렌즈 DB가 없음). 수동 왜곡/비네팅만
+- ❌ Effects 비네팅의 Highlights 항목, Grain 시드 제어: 미구현
+- ⚠ Transform/Lens로 가장자리가 비어도 크롭이 자동으로 제한되지 않음(빈 영역은 배경색). 크롭 제한은 각도 회전에만 적용
+- ⚠ Before/After의 "Before"는 크롭·Transform·Lens 기하는 유지하고 톤/색/디테일/효과만 원본으로 되돌림
+- ⚠ Noise Reduction·Defringe는 줌 35% 미만에서는 생략(축소 표시에서는 효과가 보이지 않음)
+- ⚠ 커브·믹서·그레이딩·샤프닝은 LR과 수식이 달라 결과가 다름(근사 구현)
+
 ## Phase 3 — ⬜ Library(카탈로그·필터·별점/플래그·메타데이터·보기 모드), 프리셋(20+)/히스토리/스냅샷/복사·붙여넣기, Export(일괄 ZIP·워터마크·타일 렌더)
 ## Phase 4 — ⬜ 마스킹, Spot Removal, Red-eye
 ## Phase 5 — ⬜ RAW(libraw-wasm 실측 후 결정, 불안정 시 내장 JPEG 프리뷰 추출), 선택: AI 마스크, 성능 최적화, PWA/Tauri

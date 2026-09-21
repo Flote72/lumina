@@ -19,6 +19,8 @@ interface DevelopState {
   cropSnapshot: EditParams['crop'] | null
   guide: GuideKind
   picking: boolean
+  /** colour-mixer target tool: which channel a drag on the image edits */
+  mixerTarget: 'hue' | 'sat' | 'lum' | null
   /** displayed colour under the cursor (0..255) */
   readout: [number, number, number] | null
   /** id of the photo currently loaded in the renderer */
@@ -36,6 +38,7 @@ interface DevelopState {
   exitCrop: () => void
   cycleGuide: () => void
   setPicking: (v: boolean) => void
+  setMixerTarget: (m: 'hue' | 'sat' | 'lum' | null) => void
 }
 
 export const useDevelop = create<DevelopState>()((set, get) => ({
@@ -50,6 +53,7 @@ export const useDevelop = create<DevelopState>()((set, get) => ({
   cropSnapshot: null,
   guide: 'thirds',
   picking: false,
+  mixerTarget: null,
   readout: null,
   loadedId: null,
 
@@ -65,5 +69,6 @@ export const useDevelop = create<DevelopState>()((set, get) => ({
   enterCrop: (cropSnapshot) => set({ cropEdit: true, cropSnapshot, zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: true, picking: false }),
   exitCrop: () => set({ cropEdit: false, cropSnapshot: null, zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: true }),
   cycleGuide: () => set({ guide: GUIDES[(GUIDES.indexOf(get().guide) + 1) % GUIDES.length]! }),
-  setPicking: (picking) => set({ picking }),
+  setPicking: (picking) => set({ picking, mixerTarget: picking ? null : get().mixerTarget }),
+  setMixerTarget: (mixerTarget) => set({ mixerTarget, picking: mixerTarget ? false : get().picking }),
 }))

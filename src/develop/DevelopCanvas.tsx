@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { frameSize, resolveZoom } from '@/core/geometry/crop'
 import { solveWB } from '@/core/color/whiteBalance'
-import { DEFAULT_BASIC } from '@/core/params/params'
+import { hueToMixerColor, rgbToHsl } from '@/core/color/hsl'
+import { createDefaultParams, type MixerColor } from '@/core/params/params'
 import { EmptyState, ErrorState, LoadingState } from '@/design-system/states'
 import { useT } from '@/i18n'
 import { renderClient } from '@/render/client'
@@ -22,7 +23,7 @@ export function DevelopCanvas() {
   const params = usePhotos((s) => (s.currentId ? s.params[s.currentId] : undefined))
   const setDims = usePhotos((s) => s.setDims)
   const dev = useDevelop()
-  const { zoomMode, customZoom, pan, smooth, compare, clipping, cropEdit, picking, loadedId } = dev
+  const { zoomMode, customZoom, pan, smooth, compare, clipping, cropEdit, picking, loadedId, mixerTarget } = dev
 
   const boxRef = useRef<HTMLDivElement>(null)
   const [box, setBox] = useState({ w: 0, h: 0, dpr: 1 })
@@ -66,7 +67,7 @@ export function DevelopCanvas() {
     d.setLoadedId(null)
     d.setReadout(null)
     if (d.cropEdit) d.exitCrop()
-    useDevelop.setState({ zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: false, picking: false })
+    useDevelop.setState({ zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: false, picking: false, mixerTarget: null })
     if (!id || !file) {
       renderClient.unload()
       return
@@ -113,7 +114,8 @@ export function DevelopCanvas() {
     if (!ready || !params) return
     renderClient.render({
       params,
-      before: { ...params, basic: { ...DEFAULT_BASIC } },
+      // "before" = original tones, same geometry (crop / transform / lens)
+      before: { ...createDefaultParams(), crop: params.crop, transform: params.transform, lens: params.lens },
       zoom: view.zoom,
       pan: [view.x, view.y],
       cropEdit,
@@ -166,6 +168,7 @@ export function DevelopCanvas() {
   // --- pointer: pan, readout, WB pick -----------------------------------------------------------
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null)
   const probing = useRef(false)
+  const targetDrag = useRef<{ color: MixerColor; mode: 'hue' | 'sat' | 'lum'; y: number; base: number } | null>(null)
   const zoomedIn = view.zoom > fitZoom * 1.001
 
   const devPos = (e: React.PointerEvent | React.MouseEvent) => {
@@ -175,6 +178,23 @@ export function DevelopCanvas() {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!ready || picking) return
+    if (mixerTarget && e.button === 0) {
+      const p = devPos(e)
+      const el = e.currentTarget
+      const pid = e.pointerId
+      const y0 = e.clientY
+      const mode = mixerTarget
+      el.setPointerCapture(pid)
+      renderClient.probeRGB(Math.round(p.x), Math.round(p.y)).then((rgb) => {
+        if (!rgb) return
+        const [hue, sat] = rgbToHsl(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
+        if (sat < 0.03) return
+        const color = hueToMixerColor(hue)
+        const s = usePhotos.getState()
+        targetDrag.current = { color, mode, y: y0, base: s.params[s.currentId!]!.mixer[mode][color] }
+      })
+      return
+    }
     if (e.button === 1 || (e.button === 0 && (space || zoomedIn))) {
       e.preventDefault()
       e.currentTarget.setPointerCapture(e.pointerId)
@@ -183,6 +203,12 @@ export function DevelopCanvas() {
     }
   }
   const onPointerMove = (e: React.PointerEvent) => {
+    if (targetDrag.current) {
+      const d = targetDrag.current
+      const v = Math.round(Math.min(100, Math.max(-100, d.base + (d.y - e.clientY) * 0.7)))
+      usePhotos.getState().edit((p) => ({ ...p, mixer: { ...p.mixer, [d.mode]: { ...p.mixer[d.mode], [d.color]: v } } }))
+      return
+    }
     if (drag.current) {
       const d = drag.current
       useDevelop.getState().setView(view.zoom, { x: d.px + (e.clientX - d.x) * box.dpr, y: d.py + (e.clientY - d.y) * box.dpr })
@@ -198,6 +224,10 @@ export function DevelopCanvas() {
       .finally(() => (probing.current = false))
   }
   const endDrag = () => {
+    if (targetDrag.current) {
+      targetDrag.current = null
+      usePhotos.getState().commit(t('panel.colorMixer'))
+    }
     drag.current = null
     setPanning(false)
   }
@@ -214,7 +244,7 @@ export function DevelopCanvas() {
     })
   }
 
-  const cursor = picking ? 'crosshair' : panning ? 'grabbing' : space || zoomedIn ? 'grab' : 'default'
+  const cursor = picking || mixerTarget ? 'crosshair' : panning ? 'grabbing' : space || zoomedIn ? 'grab' : 'default'
 
   // --- split divider ------------------------------------------------------------------------------
   const onDividerDown = (e: React.PointerEvent) => {

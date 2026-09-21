@@ -2,6 +2,10 @@ import type { ReactNode } from 'react'
 import { BasicPanel } from '@/develop/BasicPanel'
 import { HistogramPanel } from '@/develop/Histogram'
 import { Navigator } from '@/develop/Navigator'
+import { ColorGradingPanel } from '@/develop/panels/ColorGradingPanel'
+import { ColorMixerPanel } from '@/develop/panels/ColorMixerPanel'
+import { DetailPanel, EffectsPanel, LensPanel, TransformPanel } from '@/develop/panels/SimplePanels'
+import { ToneCurvePanel } from '@/develop/panels/ToneCurvePanel'
 import { Section } from '@/design-system/Section'
 import { useT } from '@/i18n'
 import type { ModuleId } from '@/store/ui'
@@ -12,6 +16,13 @@ const IMPLEMENTED: Partial<Record<string, ReactNode>> = {
   'develop.navigator': <Navigator />,
   'develop.histogram': <HistogramPanel />,
   'develop.basic': <BasicPanel />,
+  'develop.toneCurve': <ToneCurvePanel />,
+  'develop.colorMixer': <ColorMixerPanel />,
+  'develop.colorGrading': <ColorGradingPanel />,
+  'develop.detail': <DetailPanel />,
+  'develop.lens': <LensPanel />,
+  'develop.transform': <TransformPanel />,
+  'develop.effects': <EffectsPanel />,
 }
 
 export function SidePanel({ side, module }: { side: 'left' | 'right'; module: ModuleId }) {

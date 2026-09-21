@@ -3,7 +3,6 @@ import { Slider } from '@/design-system/Slider'
 import {
   applyRatio,
   cropToFrameRect,
-  fitInside,
   flipRatio,
   frameRectToCrop,
   RATIO_PRESETS,
@@ -13,7 +12,7 @@ import { DEFAULT_CROP } from '@/core/params/params'
 import { useT, type TKey } from '@/i18n'
 import { useDevelop, type GuideKind } from '@/store/develop'
 import { usePhotos } from '@/store/photos'
-import { applyCrop, cancelCrop, canCrop, toggleCrop } from './cropActions'
+import { applyCrop, cancelCrop, canCrop, setCropAngle, toggleCrop } from './cropActions'
 
 const ZOOMS = [
   { mode: 'fit', label: 'toolbar.fit' },
@@ -49,13 +48,6 @@ function CropBar() {
     if (base === 'free') return
     setRatio(flipRatio(base))
   }
-  const setAngle = (a: number) =>
-    edit((p) => {
-      const c = p.crop
-      const next = fitInside(cropToFrameRect(c, W, H), a, W, H)
-      return { ...p, crop: frameRectToCrop(next, a, c.ratio, W, H) }
-    })
-
   return (
     <>
       <label className="flex items-center gap-1.5 text-xs text-fg-2">
@@ -73,7 +65,7 @@ function CropBar() {
         ⇄
       </Button>
       <div className="w-56">
-        <Slider label={t('crop.angle')} min={-45} max={45} step={0.1} value={crop.angle} defaultValue={0} onChange={setAngle} onCommit={() => commit('Angle')} />
+        <Slider label={t('crop.angle')} min={-45} max={45} step={0.1} value={crop.angle} defaultValue={0} onChange={setCropAngle} onCommit={() => commit('Angle')} />
       </div>
       <label className="flex items-center gap-1.5 text-xs text-fg-2">
         {t('crop.guide')}
