@@ -17,7 +17,7 @@ export function TopBar() {
   return (
     <header className="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-line bg-bg-1 px-3">
       <div className="flex items-center gap-2">
-        <img src="/favicon.svg" alt="" className="size-5" />
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-5" />
         <span className="text-base font-semibold tracking-wide">{t('app.name')}</span>
         <Button className="ml-3" onClick={importFromFiles}>
           {t('import.files')}
