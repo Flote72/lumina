@@ -131,9 +131,18 @@ interface ComponentBase {
   op: MaskOp
   invert: boolean
 }
+/** Pre-computed coverage (AI subject / sky detection) that brush strokes then refine. */
+export interface MaskBase {
+  w: number
+  h: number
+  /** base64 of w*h 8-bit coverage values */
+  data: string
+  source: 'subject' | 'sky'
+}
+
 export type MaskComponent = ComponentBase &
   (
-    | { kind: 'brush'; strokes: BrushStroke[] }
+    | { kind: 'brush'; strokes: BrushStroke[]; base?: MaskBase }
     | { kind: 'linear'; x0: number; y0: number; x1: number; y1: number }
     | { kind: 'radial'; cx: number; cy: number; rx: number; ry: number; angle: number; feather: number }
     | { kind: 'luminance'; lo: number; hi: number; smooth: number }

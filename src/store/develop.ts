@@ -18,6 +18,9 @@ interface DevelopState {
   /** local-adjustment / retouch tool currently active (crop is `cropEdit`) */
   tool: LocalTool | null
   maskDraw: MaskDraw | null
+  /** status text while an AI mask is being computed */
+  aiBusy: string | null
+  setAiBusy: (v: string | null) => void
   maskSel: string | null
   compSel: string | null
   /** show the selected mask as a red overlay */
@@ -77,6 +80,8 @@ interface DevelopState {
 export const useDevelop = create<DevelopState>()((set, get) => ({
   tool: null,
   maskDraw: null,
+  aiBusy: null,
+  setAiBusy: (aiBusy) => set({ aiBusy }),
   maskSel: null,
   compSel: null,
   overlay: false,

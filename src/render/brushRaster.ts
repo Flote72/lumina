@@ -1,4 +1,4 @@
-import type { BrushStroke } from '@/core/params/params'
+import type { BrushStroke, MaskBase } from '@/core/params/params'
 
 export const BRUSH_MAX_SIDE = 1536
 
@@ -43,10 +43,11 @@ export function brushSize(W: number, H: number): { w: number; h: number } {
  * Paint brush strokes into an image-space bitmap. The mask value lives in the alpha channel.
  * Each stroke builds up with `flow` on its own layer, is capped by `density`, then added (or erased).
  */
-export function rasterizeBrush(strokes: BrushStroke[], W: number, H: number): BrushBitmap {
+export function rasterizeBrush(strokes: BrushStroke[], W: number, H: number, base?: MaskBase): BrushBitmap {
   const { w, h } = brushSize(W, H)
   const canvas = new OffscreenCanvas(w, h)
   const g = canvas.getContext('2d')!
+  if (base) drawBase(g, base, w, h)
   const L = Math.max(w, h)
 
   for (const s of strokes) {
@@ -96,4 +97,33 @@ export function rasterizeBrush(strokes: BrushStroke[], W: number, H: number): Br
     g.restore()
   }
   return { canvas, w, h }
+}
+
+const baseCache = new Map<string, OffscreenCanvas>()
+
+/** Paint the AI coverage bitmap (stretched over the whole image) with a slight blur for soft edges. */
+function drawBase(g: OffscreenCanvasRenderingContext2D, base: MaskBase, w: number, h: number) {
+  let src = baseCache.get(base.data)
+  if (!src) {
+    const bin = atob(base.data)
+    const px = new Uint8ClampedArray(base.w * base.h * 4)
+    for (let i = 0; i < base.w * base.h; i++) {
+      px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = 255
+      px[i * 4 + 3] = bin.charCodeAt(i)
+    }
+    src = new OffscreenCanvas(base.w, base.h)
+    src.getContext('2d')!.putImageData(new ImageData(px, base.w, base.h), 0, 0)
+    if (baseCache.size > 6) baseCache.clear()
+    baseCache.set(base.data, src)
+  }
+  g.save()
+  g.imageSmoothingEnabled = true
+  g.imageSmoothingQuality = 'high'
+  try {
+    g.filter = `blur(${Math.max(1, Math.round(Math.max(w, h) / 600))}px)`
+  } catch {
+    /* filter unsupported: edges stay as sharp as the source resolution */
+  }
+  g.drawImage(src, 0, 0, w, h)
+  g.restore()
 }

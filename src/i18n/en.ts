@@ -456,4 +456,13 @@ export const en: Record<TKey, string> = {
   'meta.raw': 'RAW development',
   'meta.rawLibraw': 'LibRaw (camera white balance, 8-bit sRGB)',
   'meta.rawPreview': 'Embedded preview JPEG',
+  'mask.subject': 'Subject (AI)',
+  'mask.sky': 'Sky',
+  'ai.subjectNote': 'Selects the main subject with the U²-Net-P neural network (4.5 MB, runs in your browser). Photos are never uploaded.',
+  'ai.skyNote': 'Selects the sky with a colour / position heuristic (not a neural network). Refine it with the brush.',
+  'ai.loadingModel': 'Loading the AI model… (first time only, ~18 MB)',
+  'ai.analyzing': 'Analysing the subject…',
+  'ai.analyzingSky': 'Looking for the sky…',
+  'ai.noSky': 'No sky found (it must reach the top of the frame).',
+  'ai.failed': 'AI mask failed: {msg}',
 }

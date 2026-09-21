@@ -6,7 +6,7 @@ import { useDevelop } from '@/store/develop'
 import { usePhotos } from '@/store/photos'
 import { useToastStore } from '@/store/toast'
 import { usePanelReady } from '../panels/usePanelReady'
-import { commitEdit, duplicateMask, removeComponent, removeMask, setAdjust, startMask, updateComponent, updateMask } from './maskActions'
+import { commitEdit, duplicateMask, removeComponent, removeMask, runAiMask, setAdjust, startMask, updateComponent, updateMask } from './maskActions'
 
 const KINDS: MaskKind[] = ['brush', 'linear', 'radial', 'luminance', 'color']
 const OPS: MaskOp[] = ['add', 'subtract', 'intersect']
@@ -105,6 +105,7 @@ export function MaskPanel() {
   const maskSel = useDevelop((s) => s.maskSel)
   const compSel = useDevelop((s) => s.compSel)
   const overlay = useDevelop((s) => s.overlay)
+  const aiBusy = useDevelop((s) => s.aiBusy)
   const { selectMask, setOverlay, setMaskDraw } = useDevelop.getState()
 
   const m = masks.find((x) => x.id === maskSel)
@@ -125,6 +126,14 @@ export function MaskPanel() {
           </Button>
         ))}
       </div>
+      <div className="flex flex-wrap gap-1 px-3 pb-1">
+        {(['subject', 'sky'] as const).map((k) => (
+          <Button key={k} disabled={!ready || !canBrush || !!aiBusy} onClick={() => void runAiMask(k)} className="!px-2 text-xs" title={t(k === 'subject' ? 'ai.subjectNote' : 'ai.skyNote')}>
+            {t(`mask.${k}` as TKey)}
+          </Button>
+        ))}
+      </div>
+      {aiBusy && <p className="px-3 pb-1 text-2xs text-accent" role="status">{aiBusy}</p>}
       {!canBrush && <p className="px-3 pb-1 text-2xs text-fg-2">{t('mask.disabledBrush')}</p>}
       {hint && <p className="px-3 pb-1 text-2xs text-accent">{t(hint)}</p>}
 
@@ -227,9 +236,10 @@ export function MaskPanel() {
                   value=""
                   aria-label={`${t(opKey(op))}: ${t('mask.addComponent')}`}
                   onChange={(e) => {
-                    const k = e.target.value as MaskKind
+                    const k = e.target.value
                     e.target.value = ''
-                    if (k) startMask(k, op, m.id)
+                    if (k === 'ai:subject' || k === 'ai:sky') void runAiMask(k === 'ai:subject' ? 'subject' : 'sky', op, m.id)
+                    else if (k) startMask(k as MaskKind, op, m.id)
                   }}
                 >
                   <option value="">{t(opKey(op))} +</option>
@@ -238,6 +248,8 @@ export function MaskPanel() {
                       {t(`mask.${k}` as TKey).replace(/ \(.+\)$/, '')}
                     </option>
                   ))}
+                  <option value="ai:subject">{t('mask.subject')}</option>
+                  <option value="ai:sky">{t('mask.sky')}</option>
                 </select>
               ))}
             </div>

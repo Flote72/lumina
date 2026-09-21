@@ -58,7 +58,7 @@ export function maskShapeKey(m: Mask): string {
   const parts = m.components.map((c) => {
     if (c.kind === 'brush') {
       const last = c.strokes[c.strokes.length - 1]
-      return `${c.id}:b:${c.op}:${c.invert ? 1 : 0}:${c.strokes.length}:${last?.points.length ?? 0}:${last ? last.points[last.points.length - 1] : ''}`
+      return `${c.id}:b:${c.op}:${c.invert ? 1 : 0}:${c.strokes.length}:${last?.points.length ?? 0}:${last ? last.points[last.points.length - 1] : ''}:${c.base?.data.length ?? 0}`
     }
     const { id, ...rest } = c
     return `${id}:${JSON.stringify(rest)}`

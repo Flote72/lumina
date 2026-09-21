@@ -218,11 +218,11 @@ export class Renderer {
   /** Texture holding the painted bitmap of a brush component (re-rasterised when its strokes change). */
   private brushTexture(c: Extract<MaskComponent, { kind: 'brush' }>): WebGLTexture {
     const last = c.strokes[c.strokes.length - 1]
-    const sig = `${c.strokes.length}:${last?.points.length ?? 0}:${last ? last.points[last.points.length - 1] : ''}:${c.strokes.reduce((a, s) => a + s.points.length, 0)}`
+    const sig = `${c.base?.data.length ?? 0}:${c.strokes.length}:${last?.points.length ?? 0}:${last ? last.points[last.points.length - 1] : ''}:${c.strokes.reduce((a, s) => a + s.points.length, 0)}`
     const hit = this.brushTex.get(c.id)
     if (hit && hit.sig === sig) return hit.tex
     const gl = this.gl
-    const bmp = rasterizeBrush(c.strokes, this.imgW, this.imgH)
+    const bmp = rasterizeBrush(c.strokes, this.imgW, this.imgH, c.base)
     const tex = hit?.tex ?? gl.createTexture()!
     gl.bindTexture(gl.TEXTURE_2D, tex)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false)

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { createDefaultParams, type EditParams } from '@/core/params/params'
+import { createDefaultParams, mergeDefaults, type EditParams } from '@/core/params/params'
 import { db, type ColorLabel, type Flag, type HistoryEntry, type PhotoRow } from '@/catalog/db'
 import { readExif } from '@/catalog/exif'
 import { translate } from '@/i18n'
@@ -118,7 +118,6 @@ export const usePhotos = create<PhotosState>()((set, get) => ({
     const params: Record<string, EditParams> = {}
     rows.sort((a, b) => a.addedAt - b.addedAt)
     for (const r of rows) photos[r.id] = rowToPhoto(r, tmap.get(r.id))
-    const { mergeDefaults } = await import('@/core/params/params')
     for (const r of rows) params[r.id] = createDefaultParams()
     for (const e of edits) if (photos[e.photoId]) params[e.photoId] = mergeDefaults(e.params)
     set({ photos, params, order: rows.map((r) => r.id), ready: true })

@@ -454,6 +454,15 @@ export const ko = {
   'meta.raw': 'RAW 현상',
   'meta.rawLibraw': 'LibRaw (카메라 화이트밸런스, 8비트 sRGB)',
   'meta.rawPreview': '내장 미리보기 JPEG',
+  'mask.subject': '피사체 (AI)',
+  'mask.sky': '하늘',
+  'ai.subjectNote': 'U²-Net-P 신경망(4.5MB, 브라우저 안에서 실행)으로 주 피사체를 자동 선택합니다. 사진은 서버로 전송되지 않습니다.',
+  'ai.skyNote': '색·위치·연결성 기반 휴리스틱으로 하늘을 선택합니다(신경망 아님). 브러시로 다듬을 수 있습니다.',
+  'ai.loadingModel': 'AI 모델을 불러오는 중… (처음 한 번만, 약 18MB)',
+  'ai.analyzing': '피사체를 분석하는 중…',
+  'ai.analyzingSky': '하늘을 찾는 중…',
+  'ai.noSky': '하늘을 찾지 못했습니다. (프레임 위쪽에 하늘이 이어져 있어야 합니다)',
+  'ai.failed': 'AI 마스크 실패: {msg}',
 } as const
 
 export type TKey = keyof typeof ko

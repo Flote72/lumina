@@ -1,7 +1,12 @@
+import { segmentSky, segmentSubject } from '@/ai/segment'
 import { newComponent, newMask, newStroke } from '@/core/mask/create'
 import { MAX_MASKS, MAX_REDEYES, MAX_SPOTS, type EditParams, type Mask, type MaskComponent, type MaskKind, type MaskOp, type RedEye, type Spot } from '@/core/params/params'
+import { translate } from '@/i18n'
 import { useDevelop } from '@/store/develop'
 import { usePhotos } from '@/store/photos'
+import { useToastStore } from '@/store/toast'
+import { useUiStore } from '@/store/ui'
+import { getPreview } from './previewImage'
 
 /** History labels are localized by the caller through these keys' English defaults. */
 const edit = (fn: (p: EditParams) => EditParams) => usePhotos.getState().edit(fn)
@@ -141,3 +146,31 @@ export function startMask(kind: MaskKind, op: MaskOp = 'add', maskId: string | n
   commit(kind === 'color' ? 'Color range' : 'Luminance range')
 }
 
+
+
+/** AI subject (U²-Net-P) or heuristic sky mask, added as a new mask or as a component of `maskId`. */
+export async function runAiMask(source: 'subject' | 'sky', op: MaskOp = 'add', maskId: string | null = null) {
+  const d = useDevelop.getState()
+  const id = usePhotos.getState().currentId
+  if (!id || d.aiBusy) return
+  const lang = useUiStore.getState().lang
+  const toast = useToastStore.getState().push
+  if (currentMasks().length >= MAX_MASKS && !maskId) return toast(translate(lang, 'mask.limit', { n: MAX_MASKS }), 'error')
+  d.setAiBusy(translate(lang, source === 'subject' ? 'ai.analyzing' : 'ai.analyzingSky'))
+  try {
+    const pv = await getPreview(id)
+    const base = source === 'subject' ? await segmentSubject(pv, (s) => useDevelop.getState().setAiBusy(translate(lang, s === 'model' ? 'ai.loadingModel' : 'ai.analyzing'))) : segmentSky(pv)
+    if (!base) return toast(translate(lang, 'ai.noSky'), 'error')
+    if (usePhotos.getState().currentId !== id) return // user switched photos meanwhile
+    const comp = { ...newComponent('brush', op), base } as MaskComponent
+    if (maskId) addComponent(maskId, 'brush', op, comp)
+    else createMask('brush', comp, source === 'subject' ? 'Subject' : 'Sky')
+    d.setTool('mask')
+    d.setOverlay(true)
+    commit(source === 'subject' ? 'Subject mask' : 'Sky mask')
+  } catch (e) {
+    toast(translate(lang, 'ai.failed', { msg: (e as Error).message }), 'error')
+  } finally {
+    useDevelop.getState().setAiBusy(null)
+  }
+}
