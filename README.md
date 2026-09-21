@@ -32,6 +32,8 @@ src/
   develop/        Develop 캔버스(줌/팬/크롭/비교), 보정 패널, 히스토그램, Navigator
   develop/local/  마스킹·스팟·적목: 오버레이(핸들/브러시), 패널, 조작 함수
   catalog/        Dexie 스키마, EXIF 읽기
+  raw/            RAW 현상(libraw-wasm) + 내장 JPEG 프리뷰 폴백
+  ai/             AI 피사체 분할 Worker(onnxruntime-web, U²-Net-P) + 하늘 휴리스틱
   library/        그리드/비교/서베이, 필터 툴바, 컬렉션·메타데이터 패널, 가져오기 라우팅
   export/         내보내기 엔진(Worker, 타일 렌더링), 설정 UI, 배치 실행(ZIP)
 ```
@@ -41,3 +43,8 @@ src/
 ## 디자인 원칙
 
 무채색 다크 테마 + 포인트 컬러 하나(앰버 `#e8a33d`). 토큰은 `src/index.css`의 `@theme`에 정의. 패널 구분은 색이 아닌 간격과 얇은 구분선. 폰트는 Pretendard + Inter(셀프호스팅).
+
+## 배포 / 오프라인
+
+`npm run build` 결과(`dist/`)는 정적 파일이라 GitHub Pages 등 어디든 올릴 수 있습니다(`vite.config.ts`의 `base`를 맞추세요). 서비스 워커(`public/sw.js`)가 앱을 오프라인에서 열 수 있게 하고, 브라우저의 "설치"로 독립 창 앱처럼 쓸 수 있습니다.
+RAW/AI 기능은 처음 사용할 때 WASM(각각 약 1.4MB / 14MB)과 모델(4.5MB)을 내려받습니다. 라이선스는 `THIRD_PARTY.md`를 참고하세요.
