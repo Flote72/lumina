@@ -1,0 +1,83 @@
+@import 'pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css';
+@import '@fontsource-variable/inter';
+@import 'tailwindcss';
+
+/* Lumina design tokens — neutral greys only, one accent (amber). */
+@theme {
+  --font-sans: 'Inter Variable', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-bg-0: #171717; /* app chrome / canvas surround */
+  --color-bg-1: #1b1b1b; /* panels */
+  --color-bg-2: #232323; /* raised: inputs, hover */
+  --color-bg-3: #2a2a2a; /* pressed / active */
+  --color-line: #303030; /* thin dividers */
+  --color-line-strong: #3d3d3d;
+  --color-fg-0: #ededed; /* primary text  (contrast on bg-1 ≈ 14:1) */
+  --color-fg-1: #b4b4b4; /* secondary     (≈ 8:1) */
+  --color-fg-2: #8a8a8a; /* tertiary      (≈ 4.9:1) */
+  --color-accent: #e8a33d;
+  --color-accent-dim: #8a6222;
+  --color-accent-fg: #1b1305; /* text on accent */
+  --color-danger: #e5645a;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+
+  --spacing-row: 26px; /* slider row height (24–28px) */
+  --ease-out-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg-0);
+  color: var(--color-fg-0);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+/* Visible focus ring for keyboard users only. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Slim dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
