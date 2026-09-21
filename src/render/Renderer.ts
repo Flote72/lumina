@@ -121,7 +121,7 @@ export class Renderer {
     this.clearCanvas()
   }
 
-  resize(w: number, h: number) {
+  resize(w: number, h: number, rerender = true) {
     if (w === this.size.w && h === this.size.h) return
     this.canvas.width = w
     this.canvas.height = h
@@ -140,7 +140,7 @@ export class Renderer {
     this.blurL = new Target(g, qw, qh, f)
     this.blurR = new Target(g, w, h, f)
     this.nrT = new Target(g, w, h, f)
-    if (this.lastState) this.render(this.lastState)
+    if (rerender && this.lastState) this.render(this.lastState)
   }
 
   dispose() {
@@ -239,6 +239,9 @@ export class Renderer {
     p.f1v('uMixSat', MIXER_COLORS.map((c) => m.sat[c] / 100))
     p.f1v('uMixLum', MIXER_COLORS.map((c) => m.lum[c] / 100))
 
+    p.i1('uBW', pr.bw.enabled ? 1 : 0)
+    p.f1v('uGrayMix', MIXER_COLORS.map((c) => pr.bw.mix[c] / 100))
+
     const g = pr.grading
     const wheels = [g.shadows, g.midtones, g.highlights, g.global].map(wheelOffset)
     p.i1('uGradeOn', gradingActive(g) ? 1 : 0)
@@ -331,6 +334,7 @@ export class Renderer {
       .f1('uDist', (state.params.lens.distortion / 100) * 0.35)
       .f1('uVigFix', state.params.lens.vignette / 100)
       .f1('uVigMid', state.params.lens.vignetteMid / 100)
+      .f1('uBleed', state.bleed ?? 0)
     this.tex(0, this.src)
     this.draw()
     this.frame = { zoom: state.zoom, pan: state.pan, half: [hx, hy] }

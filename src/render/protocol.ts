@@ -15,6 +15,8 @@ export interface RenderState {
   cropEdit: boolean
   compare: { mode: CompareMode; pos: number }
   clipping: boolean
+  /** export only: extra px of opacity at the frame edge */
+  bleed?: number
 }
 
 export type ToHost =

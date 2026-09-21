@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useT } from '@/i18n'
 import { collectDroppedFiles } from '@/platform/fileAccess'
-import { usePhotos } from '@/store/photos'
+import { handleIncomingFiles } from '@/library/incoming'
 
 /** Window-wide drag-and-drop import with an overlay. */
 export function DropZone() {
@@ -30,7 +30,7 @@ export function DropZone() {
       e.preventDefault()
       depth = 0
       setActive(false)
-      usePhotos.getState().importFiles(await collectDroppedFiles(e.dataTransfer!))
+      await handleIncomingFiles(await collectDroppedFiles(e.dataTransfer!))
     }
     window.addEventListener('dragenter', enter)
     window.addEventListener('dragover', over)

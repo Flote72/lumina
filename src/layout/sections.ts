@@ -10,17 +10,17 @@ export interface SectionDef {
 
 export const LEFT_SECTIONS: Record<ModuleId, SectionDef[]> = {
   library: [
-    { id: 'catalog', title: 'panel.catalog', phase: 3 },
-    { id: 'collections', title: 'panel.collections', phase: 3 },
+    { id: 'catalog', title: 'coll.title', phase: 3 },
   ],
   develop: [
     { id: 'navigator', title: 'panel.navigator', phase: 1 },
     { id: 'presets', title: 'panel.presets', phase: 3 },
     { id: 'snapshots', title: 'panel.snapshots', phase: 3 },
     { id: 'history', title: 'panel.history', phase: 3 },
+    { id: 'settings', title: 'panel.settings', phase: 3 },
     { id: 'collections', title: 'panel.collections', phase: 3 },
   ],
-  export: [{ id: 'collections', title: 'panel.collections', phase: 3 }],
+  export: [{ id: 'catalog', title: 'coll.title', phase: 3 }],
 }
 
 export const RIGHT_SECTIONS: Record<ModuleId, SectionDef[]> = {

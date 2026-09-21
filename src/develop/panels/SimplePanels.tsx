@@ -57,7 +57,7 @@ export function TransformPanel() {
     let bmp: ImageBitmap | null = null
     try {
       const k = 512 / Math.max(photo.width, photo.height)
-      bmp = await createImageBitmap(photo.file, { resizeWidth: Math.round(photo.width * k), resizeHeight: Math.round(photo.height * k), resizeQuality: 'medium' })
+      bmp = await createImageBitmap(await usePhotos.getState().getFile(photo.id), { resizeWidth: Math.round(photo.width * k), resizeHeight: Math.round(photo.height * k), resizeQuality: 'medium' })
       const c = new OffscreenCanvas(bmp.width, bmp.height)
       const g = c.getContext('2d', { willReadFrequently: true })!
       g.drawImage(bmp, 0, 0)

@@ -1,4 +1,4 @@
-import { cropToFrameRect, fitInside, frameRectToCrop } from '@/core/geometry/crop'
+import { applyRatio, cropToFrameRect, fitInside, flipRatio, frameRectToCrop, ratioValue } from '@/core/geometry/crop'
 import { useDevelop } from '@/store/develop'
 import { usePhotos } from '@/store/photos'
 
@@ -47,4 +47,20 @@ export function setCropAngle(angle: number) {
     const next = fitInside(cropToFrameRect(p.crop, W, H), angle, W, H)
     return { ...p, crop: frameRectToCrop(next, angle, p.crop.ratio, W, H) }
   })
+}
+
+/** Swap landscape/portrait of the locked crop ratio (X key). */
+export function flipCropRatio() {
+  const c = current()
+  if (!c) return
+  const { width: W, height: H } = c.photo
+  const base = c.params.crop.ratio === 'original' ? `${W}:${H}` : c.params.crop.ratio
+  if (base === 'free') return
+  const ratio = flipRatio(base)
+  usePhotos.getState().edit((p) => {
+    const r = cropToFrameRect(p.crop, W, H)
+    const v = ratioValue(ratio, W, H)
+    return { ...p, crop: frameRectToCrop(v ? applyRatio(r, v, p.crop.angle, W, H) : r, p.crop.angle, ratio, W, H) }
+  })
+  usePhotos.getState().commit('Crop')
 }

@@ -22,6 +22,8 @@ uniform bool uClip;
 uniform bool uCurveOn;
 uniform bool uMixOn;
 uniform float uMixHue[8], uMixSat[8], uMixLum[8];
+uniform bool uBW;
+uniform float uGrayMix[8];
 uniform bool uGradeOn;
 uniform vec3 uGradeCol[4];   // shadows, mids, highlights, global chroma offsets
 uniform float uGradeLum[4];
@@ -169,6 +171,23 @@ void main() {
     e = mix(vec3(Lc), e, 1.0 + amt);
   }
   e = mix(vec3(lum(e)), e, 1.0 + uSaturation);
+
+  // Black & white with per-colour weights
+  if (uBW) {
+    vec3 hsl = rgb2hsl(clamp(e, 0.0, 1.0));
+    float k = 0.0;
+    for (int i = 0; i < 8; i++) {
+      float a = CENTERS[i];
+      float b = (i == 7) ? 360.0 : CENTERS[i + 1];
+      if (hsl.x >= a && hsl.x < b) {
+        float t = (hsl.x - a) / (b - a);
+        t = t * t * (3.0 - 2.0 * t);
+        k = mix(uGrayMix[i], uGrayMix[(i + 1) % 8], t);
+      }
+    }
+    float g = lum(e) * (1.0 + k * 0.7 * sm(0.02, 0.2, hsl.y));
+    e = vec3(g);
+  }
 
   // Colour grading (luminance-weighted regions)
   if (uGradeOn) {

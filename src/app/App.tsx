@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
+import { ClipboardDialogs } from '@/develop/left/ClipboardDialogs'
 import { Shell } from '@/layout/Shell'
+import { useLibrary } from '@/store/library'
+import { usePresets } from '@/store/presets'
+import { usePhotos } from '@/store/photos'
 import { useUiStore } from '@/store/ui'
 import { DesignGallery } from './DesignGallery'
 import { DropZone } from './DropZone'
@@ -10,6 +14,11 @@ import { useShortcuts } from './useShortcuts'
 
 export default function App() {
   useShortcuts()
+  useEffect(() => {
+    void usePhotos.getState().hydrate()
+    void usePresets.getState().load()
+    void useLibrary.getState().loadCollections()
+  }, [])
   const lang = useUiStore((s) => s.lang)
   const [hash, setHash] = useState(location.hash)
 
@@ -28,6 +37,7 @@ export default function App() {
         <UnsupportedBanner />
         <DropZone />
         <Toasts />
+        <ClipboardDialogs />
         <div className="min-h-0 flex-1">{hash === '#/design' ? <DesignGallery /> : <Shell />}</div>
       </div>
     </ErrorBoundary>

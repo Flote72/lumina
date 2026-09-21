@@ -26,11 +26,13 @@ src/
   layout/         Shell, TopBar, SidePanel, Filmstrip, CenterStage, 섹션 정의
   i18n/           ko/en 딕셔너리와 useT()
   store/          Zustand 스토어 (ui: 모듈·패널 크기·접힘·언어, localStorage 저장)
-  core/           React/DOM 무의존 순수 로직 (params, color/WB, histogram, geometry/crop; 단위 테스트 대상)
+  core/           React/DOM 무의존 순수 로직 (params, curve, color, histogram, geometry, presets/xmp, library/filter, export; 단위 테스트 대상)
   render/         WebGL2 파이프라인: Renderer(패스), host(Worker/메인 공용), client(메인 측 핸들), shaders/*.glsl
   workers/        썸네일 디코드 워커 풀
   develop/        Develop 캔버스(줌/팬/크롭/비교), Basic 패널, 히스토그램, Navigator
-  library/        가져오기 액션
+  catalog/        Dexie 스키마, EXIF 읽기
+  library/        그리드/비교/서베이, 필터 툴바, 컬렉션·메타데이터 패널, 가져오기 라우팅
+  export/         내보내기 엔진(Worker, 타일 렌더링), 설정 UI, 배치 실행(ZIP)
 ```
 
 이후 Phase에서 `render/`, `workers/`, `catalog/`, `library/`, `develop/`, `presets/`, `export/` 등이 추가됩니다. 진행 현황은 [FEATURES.md](FEATURES.md) 참고.

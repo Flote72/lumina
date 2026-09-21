@@ -1,37 +1,33 @@
 import { DevelopCanvas } from '@/develop/DevelopCanvas'
-import { Button } from '@/design-system/Button'
 import { EmptyState } from '@/design-system/states'
+import { ExportStage } from '@/export/ExportPanels'
 import { useT } from '@/i18n'
-import { importFromFiles, importFromFolder } from '@/library/importActions'
+import { CompareView, SurveyView } from '@/library/CompareSurvey'
+import { GridView } from '@/library/GridView'
+import { LibraryToolbar } from '@/library/LibraryToolbar'
+import { useLibrary } from '@/store/library'
 import { usePhotos } from '@/store/photos'
 import type { ModuleId } from '@/store/ui'
 
-export function CenterStage({ module }: { module: ModuleId }) {
+function LibraryStage() {
   const t = useT()
-  const count = usePhotos((s) => s.order.length)
-
-  if (module === 'develop') return <main className="h-full min-w-0"><DevelopCanvas /></main>
-
-  const importButtons = (
-    <div className="flex gap-2">
-      <Button variant="primary" onClick={importFromFiles}>
-        {t('import.files')}
-      </Button>
-      <Button onClick={importFromFolder}>{t('import.folder')}</Button>
+  const view = useLibrary((s) => s.view)
+  const hasCurrent = usePhotos((s) => !!s.currentId)
+  return (
+    <div className="flex h-full flex-col">
+      <LibraryToolbar />
+      <div className="min-h-0 flex-1">
+        {view === 'grid' && <GridView />}
+        {view === 'loupe' && (hasCurrent ? <DevelopCanvas loupe /> : <EmptyState title={t('lib.selectPhoto')} />)}
+        {view === 'compare' && <CompareView />}
+        {view === 'survey' && <SurveyView />}
+      </div>
     </div>
   )
+}
 
-  return (
-    <main className="h-full min-w-0 bg-bg-0">
-      {module === 'library' ? (
-        <EmptyState
-          title={count ? `${count}` : t('empty.library.title')}
-          body={count ? t('library.photosHint', { n: count }) : t('empty.library.body')}
-          action={importButtons}
-        />
-      ) : (
-        <EmptyState title={t('empty.export.title')} body={t('empty.export.body')} />
-      )}
-    </main>
-  )
+export function CenterStage({ module }: { module: ModuleId }) {
+  if (module === 'develop') return <main className="h-full min-w-0"><DevelopCanvas /></main>
+  if (module === 'library') return <main className="h-full min-w-0 bg-bg-0"><LibraryStage /></main>
+  return <main className="h-full min-w-0 bg-bg-0"><ExportStage /></main>
 }

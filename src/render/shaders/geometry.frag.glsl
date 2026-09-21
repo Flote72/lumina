@@ -17,6 +17,7 @@ uniform vec2 uOff;           // px
 uniform float uDist;         // lens distortion (+ corrects barrel)
 uniform float uVigFix;       // lens vignetting correction, -1..1
 uniform float uVigMid;       // 0..1
+uniform float uBleed;        // export: keep edge rows fully opaque despite rounding (px)
 out vec4 outColor;
 
 void main() {
@@ -38,8 +39,8 @@ void main() {
   vec2 uv = p / uImg;
   vec4 col = texture(uSrc, uv); // sampled in uniform control flow (mip derivatives)
 
-  vec2 inFrame = clamp((uHalf - abs(o)) * uZoom + 0.5, 0.0, 1.0);
-  vec2 inImg = clamp(min(p, uImg - p) * uZoom + 0.5, 0.0, 1.0);
+  vec2 inFrame = clamp((uHalf - abs(o)) * uZoom + 0.5 + uBleed, 0.0, 1.0);
+  vec2 inImg = clamp(min(p, uImg - p) * uZoom + 0.5 + uBleed, 0.0, 1.0);
   float a = inFrame.x * inFrame.y * inImg.x * inImg.y;
   // lens vignetting correction in linear light, radius measured on the source image
   float rv = length(p - ic) / length(ic);

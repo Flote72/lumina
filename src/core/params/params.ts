@@ -100,6 +100,12 @@ export interface EffectsParams {
   grainRough: number
 }
 
+/** Black & white conversion; `mix` weights each colour range (like a channel mixer). */
+export interface BwParams {
+  enabled: boolean
+  mix: MixerRecord
+}
+
 export interface EditParams {
   version: 1
   basic: BasicParams
@@ -111,6 +117,7 @@ export interface EditParams {
   lens: LensParams
   transform: TransformParams
   effects: EffectsParams
+  bw: BwParams
 }
 
 export const DEFAULT_BASIC: Readonly<BasicParams> = {
@@ -153,6 +160,7 @@ export function createDefaultParams(): EditParams {
     lens: { distortion: 0, vignette: 0, vignetteMid: 50, defringe: 0 },
     transform: { vertical: 0, horizontal: 0, scale: 100, aspect: 0, xOffset: 0, yOffset: 0 },
     effects: { vigAmount: 0, vigMid: 50, vigRound: 0, vigFeather: 50, grainAmount: 0, grainSize: 25, grainRough: 50 },
+    bw: { enabled: false, mix: zeroMixer() },
   }
 }
 
@@ -198,4 +206,18 @@ export function setIn<T>(obj: T, path: readonly string[], value: unknown): T {
   const [k, ...rest] = path
   const src = obj as Record<string, unknown>
   return { ...src, [k!]: rest.length ? setIn(src[k!], rest, value) : value } as T
+}
+
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends (infer U)[] ? U[] : T[K] extends object ? DeepPartial<T[K]> : T[K] }
+
+/** Apply a sparse patch (e.g. a preset) onto params. Arrays (curve points) are replaced, objects merged. */
+export function applyPatch(base: EditParams, patch: DeepPartial<EditParams>): EditParams {
+  const walk = (b: unknown, p: unknown): unknown => {
+    if (p === undefined) return b
+    if (Array.isArray(p) || p === null || typeof p !== 'object') return p
+    const out: Record<string, unknown> = { ...(b as Record<string, unknown>) }
+    for (const k of Object.keys(p)) out[k] = walk(out[k], (p as Record<string, unknown>)[k])
+    return out
+  }
+  return walk(base, patch) as EditParams
 }

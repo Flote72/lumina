@@ -1,7 +1,11 @@
 import type { ReactNode } from 'react'
 import { BasicPanel } from '@/develop/BasicPanel'
 import { HistogramPanel } from '@/develop/Histogram'
+import { PresetsPanel } from '@/develop/left/PresetsPanel'
+import { HistoryPanel, SettingsPanel, SnapshotsPanel } from '@/develop/left/SnapshotsHistoryPanels'
+import { ExportSettingsPanel, FileNamingPanel, WatermarkPanel } from '@/export/ExportPanels'
 import { Navigator } from '@/develop/Navigator'
+import { CatalogPanel, MetadataPanel } from '@/library/LibraryPanels'
 import { ColorGradingPanel } from '@/develop/panels/ColorGradingPanel'
 import { ColorMixerPanel } from '@/develop/panels/ColorMixerPanel'
 import { DetailPanel, EffectsPanel, LensPanel, TransformPanel } from '@/develop/panels/SimplePanels'
@@ -13,7 +17,17 @@ import { LEFT_SECTIONS, RIGHT_SECTIONS } from './sections'
 
 /** Sections whose real content exists; the rest show a "planned for Phase N" note. */
 const IMPLEMENTED: Partial<Record<string, ReactNode>> = {
+  'library.catalog': <CatalogPanel />,
+  'library.metadata': <MetadataPanel />,
+  'export.catalog': <CatalogPanel />,
+  'export.exportSettings': <ExportSettingsPanel />,
+  'export.fileNaming': <FileNamingPanel />,
+  'export.watermark': <WatermarkPanel />,
   'develop.navigator': <Navigator />,
+  'develop.presets': <PresetsPanel />,
+  'develop.snapshots': <SnapshotsPanel />,
+  'develop.history': <HistoryPanel />,
+  'develop.settings': <SettingsPanel />,
   'develop.histogram': <HistogramPanel />,
   'develop.basic': <BasicPanel />,
   'develop.toneCurve': <ToneCurvePanel />,

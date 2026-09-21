@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { ZoomMode } from '@/core/geometry/crop'
 import type { CompareMode } from '@/render/protocol'
-import type { EditParams } from '@/core/params/params'
+import type { DeepPartial, EditParams } from '@/core/params/params'
 
 export type GuideKind = 'none' | 'thirds' | 'golden' | 'grid' | 'diagonal'
 const GUIDES: GuideKind[] = ['thirds', 'golden', 'grid', 'diagonal', 'none']
@@ -25,6 +25,9 @@ interface DevelopState {
   readout: [number, number, number] | null
   /** id of the photo currently loaded in the renderer */
   loadedId: string | null
+  /** preset hover preview (not committed) */
+  preview: DeepPartial<EditParams> | null
+  setPreview: (p: DeepPartial<EditParams> | null) => void
 
   setReadout: (v: [number, number, number] | null) => void
   setLoadedId: (id: string | null) => void
@@ -56,6 +59,8 @@ export const useDevelop = create<DevelopState>()((set, get) => ({
   mixerTarget: null,
   readout: null,
   loadedId: null,
+  preview: null,
+  setPreview: (preview) => set({ preview }),
 
   setReadout: (readout) => set({ readout }),
   setLoadedId: (loadedId) => set({ loadedId }),

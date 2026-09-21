@@ -1,0 +1,77 @@
+lib.grid|그리드 (G)|Grid (G)
+lib.loupe|루페 (E)|Loupe (E)
+lib.compare|비교 (C)|Compare (C)
+lib.survey|서베이 (N)|Survey (N)
+lib.search|검색 (파일명, 키워드, 카메라…)|Search (name, keyword, camera…)
+lib.filters|필터|Filters
+lib.filtersReset|필터 초기화|Clear filters
+lib.sort|정렬|Sort
+lib.sort.capture|촬영일|Capture time
+lib.sort.name|파일명|File name
+lib.sort.rating|별점|Rating
+lib.sort.added|가져온 순|Import order
+lib.asc|오름차순|Ascending
+lib.desc|내림차순|Descending
+lib.thumbSize|썸네일 크기|Thumbnail size
+lib.count|{shown} / {total}장 · 선택 {sel}|{shown} of {total} · {sel} selected
+lib.minRating|별점 ≥|Rating ≥
+lib.flag|플래그|Flag
+lib.flag.any|전체|Any
+lib.flag.pick|Pick|Pick
+lib.flag.reject|Reject|Reject
+lib.flag.none|없음|None
+lib.label|컬러 라벨|Color label
+lib.label.red|빨강|Red
+lib.label.yellow|노랑|Yellow
+lib.label.green|초록|Green
+lib.label.blue|파랑|Blue
+lib.label.purple|보라|Purple
+lib.camera|카메라|Camera
+lib.lens|렌즈|Lens
+lib.iso|ISO|ISO
+lib.isoMin|최소|Min
+lib.isoMax|최대|Max
+lib.date|촬영일|Date
+lib.dateFrom|시작|From
+lib.dateTo|끝|To
+lib.keyword|키워드|Keyword
+lib.edited|편집 여부|Edited
+lib.edited.any|전체|Any
+lib.edited.yes|편집함|Edited
+lib.edited.no|편집 안 함|Unedited
+lib.all|전체|All
+lib.noResults|조건에 맞는 사진이 없습니다|No photos match
+lib.noResultsBody|필터나 검색어를 바꿔 보세요.|Try changing the filters or search.
+lib.collectionEmpty|이 컬렉션은 비어 있습니다|This collection is empty
+lib.collectionEmptyBody|사진을 선택하고 컬렉션 옆의 + 버튼으로 추가하세요.|Select photos and use the + next to a collection to add them.
+lib.selectPhoto|사진을 선택하세요|Select a photo
+lib.compareHint|왼쪽이 선택, 오른쪽이 비교 대상입니다. ←/→로 비교 대상을 바꿉니다. (편집 미적용 원본 표시)|Left is the selected photo, right is the candidate. ←/→ changes the candidate. (Shows the original, without edits.)
+lib.surveyHint|선택한 사진들을 한 화면에 비교합니다. (편집 미적용 원본 표시)|Compare the selected photos at once. (Shows originals, without edits.)
+lib.needTwo|비교하려면 사진이 2장 이상 필요합니다|Compare needs at least 2 photos
+lib.remove|카탈로그에서 제거|Remove from catalog
+lib.removeTitle|사진 제거|Remove photos
+lib.removeBody|선택한 {n}장을 카탈로그에서 제거합니다. 편집 내용과 저장된 원본 사본이 삭제되며, 원래 파일은 영향받지 않습니다.|Removes {n} selected photo(s) from the catalog, including their edits and the stored copy. Your original files are not touched.
+lib.removeConfirm|제거|Remove
+coll.title|컬렉션|Collections
+coll.all|전체 사진|All Photographs
+coll.new|새 컬렉션|New collection
+coll.namePlaceholder|컬렉션 이름|Collection name
+coll.add|선택한 사진 추가|Add selected photos
+coll.removeFrom|컬렉션에서 빼기|Remove from collection
+coll.delete|컬렉션 삭제|Delete collection
+coll.rename|이름 바꾸기|Rename
+meta.file|파일|File
+meta.size|크기|Size
+meta.dimensions|해상도|Dimensions
+meta.date|촬영일|Captured
+meta.camera|카메라|Camera
+meta.lens|렌즈|Lens
+meta.exposure|노출|Exposure
+meta.iso|ISO|ISO
+meta.focal|초점 거리|Focal length
+meta.none|메타데이터가 없습니다|No metadata
+meta.keywords|키워드|Keywords
+meta.addKeyword|키워드 추가 (쉼표로 구분)|Add keywords (comma separated)
+meta.rating|별점|Rating
+meta.noSelection|사진을 선택하세요|Select a photo
+meta.multi|{n}장 선택됨 — 별점·플래그·키워드는 선택한 모두에 적용됩니다.|{n} selected — rating, flag and keywords apply to all of them.

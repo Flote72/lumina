@@ -30,7 +30,8 @@ interface ParamSliderProps {
 /** Slider bound to a numeric edit parameter addressed by path ("effects.vigAmount"). */
 export function ParamSlider({ path, label, min, max, step, bg, constrain, history }: ParamSliderProps) {
   const ready = usePanelReady()
-  const value = usePhotos((s) => (s.currentId ? getIn(s.params[s.currentId], path) : 0))
+  const def = getIn(DEFAULTS, path)
+  const value = usePhotos((s) => (s.currentId && s.params[s.currentId] ? getIn(s.params[s.currentId], path) : def))
   const edit = usePhotos((s) => s.edit)
   const commit = usePhotos((s) => s.commit)
   return (
@@ -40,7 +41,7 @@ export function ParamSlider({ path, label, min, max, step, bg, constrain, histor
       max={max}
       step={step}
       value={value}
-      defaultValue={getIn(DEFAULTS, path)}
+      defaultValue={def}
       trackBackground={bg}
       disabled={!ready}
       onChange={(v) => edit((p) => setIn(p, path, constrain ? constrain(v, p) : v))}

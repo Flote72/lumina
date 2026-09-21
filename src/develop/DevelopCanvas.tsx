@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { frameSize, resolveZoom } from '@/core/geometry/crop'
 import { solveWB } from '@/core/color/whiteBalance'
 import { hueToMixerColor, rgbToHsl } from '@/core/color/hsl'
-import { createDefaultParams, type MixerColor } from '@/core/params/params'
+import { applyPatch, createDefaultParams, type MixerColor } from '@/core/params/params'
 import { EmptyState, ErrorState, LoadingState } from '@/design-system/states'
 import { useT } from '@/i18n'
 import { renderClient } from '@/render/client'
@@ -16,11 +16,13 @@ import { useViewInfo } from './viewStore'
 
 const MAX_ZOOM = 16
 
-export function DevelopCanvas() {
+export function DevelopCanvas({ loupe = false }: { loupe?: boolean }) {
   const t = useT()
   const id = usePhotos((s) => s.currentId)
   const photo = usePhotos((s) => (s.currentId ? s.photos[s.currentId] : undefined))
-  const params = usePhotos((s) => (s.currentId ? s.params[s.currentId] : undefined))
+  const stored = usePhotos((s) => (s.currentId ? s.params[s.currentId] : undefined))
+  const preview = useDevelop((s) => s.preview)
+  const params = useMemo(() => (stored && preview ? applyPatch(stored, preview) : stored), [stored, preview])
   const setDims = usePhotos((s) => s.setDims)
   const dev = useDevelop()
   const { zoomMode, customZoom, pan, smooth, compare, clipping, cropEdit, picking, loadedId, mixerTarget } = dev
@@ -32,7 +34,6 @@ export function DevelopCanvas() {
   const [panning, setPanning] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
-  const file = photo?.file
   const W = photo?.width ?? 0
   const H = photo?.height ?? 0
   const ready = !!id && loadedId === id && W > 0
@@ -64,16 +65,18 @@ export function DevelopCanvas() {
   // --- load the selected photo in the renderer ------------------------------------------------
   useEffect(() => {
     const d = useDevelop.getState()
-    d.setLoadedId(null)
     d.setReadout(null)
     if (d.cropEdit) d.exitCrop()
     useDevelop.setState({ zoomMode: 'fit', pan: { x: 0, y: 0 }, smooth: false, picking: false, mixerTarget: null })
-    if (!id || !file) {
+    // already in the renderer (e.g. switching Library loupe ⇄ Develop): nothing to load
+    if (id && d.loadedId === id && errorId !== id) return
+    d.setLoadedId(null)
+    if (!id) {
       renderClient.unload()
       return
     }
     let cancelled = false
-    renderClient.load(id, file).then(
+    usePhotos.getState().getFile(id).then((file) => renderClient.load(id, file)).then(
       (dim) => {
         if (cancelled) return
         setDims(id, dim.width, dim.height)
@@ -86,7 +89,8 @@ export function DevelopCanvas() {
     return () => {
       cancelled = true
     }
-  }, [id, file, setDims, reloadKey])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, setDims, reloadKey])
 
   // --- view -----------------------------------------------------------------------------------
   const crop = params?.crop
@@ -312,7 +316,7 @@ export function DevelopCanvas() {
           </span>
         )}
       </div>
-      <DevelopToolbar zoomPct={view.zoom * 100} />
+      {!loupe && <DevelopToolbar zoomPct={view.zoom * 100} />}
     </div>
   )
 }
