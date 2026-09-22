@@ -3,7 +3,8 @@ import { Button } from '@/design-system/Button'
 import { Slider } from '@/design-system/Slider'
 import { EmptyState } from '@/design-system/states'
 import { renderTemplate } from '@/core/library/filter'
-import { buildFrameLines, frameHasContent, type FrameBackground, type FramePosition, type FrameStyle } from '@/core/export/frame'
+import { buildFrameLines, frameHasContent, type FrameBackground, type FrameLines, type FramePosition, type FrameSettings, type FrameStyle } from '@/core/export/frame'
+import { logoPath, resolveBrandKey } from '@/core/export/brandLogos'
 import type { WatermarkPosition } from '@/core/export/size'
 import { useT, type TKey } from '@/i18n'
 import { useExportSettings, type ExportScope } from '@/store/exportSettings'
@@ -229,6 +230,39 @@ export function WatermarkPanel() {
 const FRAME_STYLES: FrameStyle[] = ['minimal', 'strap', 'film']
 const SAMPLE_EXIF = { model: 'Camera Body', lens: 'Lens Name', focalLength: 35, fNumber: 2.8, exposureTime: 1 / 500, iso: 100, capturedAt: 1767225600000 }
 
+/**
+ * A local-only brand logo, if the user has dropped `public/logos/<brand>.png` into their own build
+ * (see core/export/brandLogos.ts — these files are never part of the repo). Renders nothing on 404.
+ */
+function BrandLogo({ cameraText, className }: { cameraText: string | undefined; className: string }) {
+  const [broken, setBroken] = useState(false)
+  const key = resolveBrandKey(cameraText)
+  if (!key || broken) return null
+  return <img src={`${import.meta.env.BASE_URL}${logoPath(key)}`} alt="" className={className} onError={() => setBroken(true)} />
+}
+
+/** CSS approximation of the caption bar drawn by core/export/frame.ts — close enough for a settings-panel preview. */
+function FrameCaption({ fr, lines, cameraText }: { fr: FrameSettings; lines: FrameLines; cameraText: string | undefined }) {
+  const dark = fr.background === 'dark'
+  const oneLine = fr.style === 'minimal' || !lines.primary || !lines.secondary
+  return (
+    <div className={`flex items-center gap-2 ${fr.style === 'film' ? '' : 'px-3 py-2'} ${fr.style === 'film' ? 'justify-center' : 'justify-start'}`}>
+      {fr.showLogo && <BrandLogo cameraText={cameraText} className="h-5 w-5 shrink-0 object-contain" />}
+      <div className={`flex flex-col justify-center gap-0.5 ${dark ? 'text-[#f2f1ec]' : 'text-[#141414]'} ${fr.style === 'film' ? 'items-center text-center' : 'items-start'}`}>
+        {oneLine ? (
+          <div className="text-xs">{[lines.primary, lines.secondary].filter(Boolean).join('   ·   ')}</div>
+        ) : (
+          <>
+            <div className="text-xs font-semibold">{lines.primary}</div>
+            {fr.style === 'strap' && <div className={`my-0.5 w-full border-t ${dark ? 'border-white/20' : 'border-black/15'}`} />}
+            <div className={`text-2xs ${dark ? 'text-[#9a9a94]' : 'text-[#5a5a56]'}`}>{lines.secondary}</div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Caption bar with camera / lens / exposure info, drawn around the exported photo (see core/export/frame.ts). */
 export function FramePanel() {
   const t = useT()
@@ -280,6 +314,7 @@ export function FramePanel() {
                 ['showFocalLength', 'ex.frame.showFocalLength'],
                 ['showExposure', 'ex.frame.showExposure'],
                 ['showDate', 'ex.frame.showDate'],
+                ['showLogo', 'ex.frame.showLogo'],
               ] as const
             ).map(([key, label]) => (
               <label key={key} className="flex items-center gap-1.5 text-sm text-fg-1">
@@ -291,14 +326,24 @@ export function FramePanel() {
           <Field label={t('ex.frame.customText')}>
             <input className={inp} value={fr.customText} onChange={(e) => setFrame({ customText: e.target.value })} placeholder={t('ex.frame.customTextPlaceholder')} />
           </Field>
+          {fr.showLogo && <p className="px-3 pb-1 text-2xs text-fg-2">{t('ex.frame.logoNote')}</p>}
 
           {!hasContent && <p className="px-3 pb-1 text-2xs text-danger">{t('ex.frame.empty')}</p>}
           {hasContent && (
-            <div className="mx-3 mb-2 overflow-hidden rounded-[4px] border border-line">
-              <div className="flex h-16 items-center justify-center bg-bg-3 text-2xs text-fg-2">{t('ex.frame.preview')}</div>
-              <div className={`flex flex-col justify-center gap-0.5 px-3 py-2 ${fr.background === 'dark' ? 'bg-[#0c0c0d] text-[#f2f1ec]' : 'bg-[#f7f6f2] text-[#141414]'} ${fr.style === 'film' ? 'items-center text-center' : 'items-start'}`}>
-                {lines.primary && <div className="text-xs font-semibold">{lines.primary}</div>}
-                {lines.secondary && <div className={`text-2xs ${fr.background === 'dark' ? 'text-[#9a9a94]' : 'text-[#5a5a56]'}`}>{lines.secondary}</div>}
+            <div className="mx-3 mb-2 overflow-hidden rounded-[4px] border border-line" aria-label={t('ex.frame.preview')}>
+              <div className={`flex flex-col ${fr.background === 'dark' ? 'bg-[#0c0c0d]' : 'bg-[#f7f6f2]'} ${fr.style === 'film' ? 'gap-2 p-[5%]' : 'gap-0'}`}>
+                {fr.position === 'top' && <FrameCaption fr={fr} lines={lines} cameraText={previewExif.model} />}
+                {cur?.thumbUrl ? (
+                  <img
+                    src={cur.thumbUrl}
+                    alt=""
+                    className={fr.style === 'film' ? 'rounded-[1px]' : ''}
+                    style={{ width: '100%', aspectRatio: cur.width && cur.height ? `${cur.width} / ${cur.height}` : '3 / 2', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div className="flex aspect-[3/2] items-center justify-center bg-bg-3 text-2xs text-fg-2">{t('lib.selectPhoto')}</div>
+                )}
+                {fr.position === 'bottom' && <FrameCaption fr={fr} lines={lines} cameraText={previewExif.model} />}
               </div>
             </div>
           )}

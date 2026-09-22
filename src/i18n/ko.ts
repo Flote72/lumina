@@ -485,6 +485,8 @@ export const ko = {
   'ex.frame.customTextPlaceholder': '예: 이름, 장소',
   'ex.frame.empty': '표시할 항목이 없어 프레임이 그려지지 않습니다. 위에서 하나 이상 켜세요.',
   'ex.frame.preview': '미리보기',
+  'ex.frame.showLogo': '로고 (로컬 파일)',
+  'ex.frame.logoNote': '로고는 이 저장소에 포함되지 않습니다. public/logos/ 폴더에 브랜드별 PNG 파일(예: canon.png, nikon.png, sony.png)을 직접 넣은 컴퓨터에서만 보이고, 파일이 없으면 자동으로 텍스트만 표시됩니다.',
 } as const
 
 export type TKey = keyof typeof ko

@@ -48,3 +48,22 @@ src/
 
 `npm run build` 결과(`dist/`)는 정적 파일이라 GitHub Pages 등 어디든 올릴 수 있습니다(`vite.config.ts`의 `base`를 맞추세요). 서비스 워커(`public/sw.js`)가 앱을 오프라인에서 열 수 있게 하고, 브라우저의 "설치"로 독립 창 앱처럼 쓸 수 있습니다.
 RAW/AI 기능은 처음 사용할 때 WASM(각각 약 1.4MB / 14MB)과 모델(4.5MB)을 내려받습니다. 라이선스는 `THIRD_PARTY.md`를 참고하세요.
+
+## EXIF 프레임의 카메라 브랜드 로고 (선택, 로컬 전용)
+
+Export의 "EXIF Frame" 패널에서 로고를 켜면 카메라 브랜드 로고를 캡션 옆에 표시할 수 있습니다. **로고 이미지 파일은 이 저장소에 포함되어 있지 않고, 커밋·배포되지도 않습니다** (`public/logos/`는 `.gitignore`에 등록됨) — Canon, Nikon, Sony 등은 각 제조사의 등록 상표라 공개 저장소에 배포할 수 없기 때문입니다.
+
+로컬에서 로고를 보려면 `public/logos/` 폴더를 만들고 브랜드별 PNG 파일(투명 배경 권장, 정사각형에 가깝게)을 아래 파일명으로 넣으세요. 파일이 없는 브랜드는 자동으로 텍스트만 표시됩니다.
+
+```
+public/logos/canon.png      public/logos/pentax.png      public/logos/samsung.png
+public/logos/nikon.png      public/logos/ricoh.png       public/logos/google.png
+public/logos/sony.png       public/logos/leica.png       public/logos/huawei.png
+public/logos/fujifilm.png   public/logos/hasselblad.png  public/logos/xiaomi.png
+public/logos/panasonic.png  public/logos/sigma.png       public/logos/oneplus.png
+public/logos/olympus.png    public/logos/kodak.png       public/logos/gopro.png
+public/logos/apple.png      public/logos/casio.png       public/logos/dji.png
+                             public/logos/phaseone.png    public/logos/insta360.png
+```
+
+전체 키 목록과 EXIF 문자열 매칭 규칙은 `src/core/export/brandLogos.ts`에 있습니다.

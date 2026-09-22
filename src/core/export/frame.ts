@@ -20,6 +20,8 @@ export interface FrameSettings {
   showDate: boolean
   /** free text appended to the secondary line (e.g. a name or location) */
   customText: string
+  /** show a brand logo next to the camera name, IF one exists locally (see core/export/brandLogos.ts) */
+  showLogo: boolean
 }
 
 export const DEFAULT_FRAME: FrameSettings = {
@@ -33,6 +35,7 @@ export const DEFAULT_FRAME: FrameSettings = {
   showFocalLength: true,
   showDate: false,
   customText: '',
+  showLogo: true,
 }
 
 export interface FrameExifInput {

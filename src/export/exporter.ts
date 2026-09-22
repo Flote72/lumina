@@ -11,6 +11,7 @@ import {
 } from '@/core/export/size'
 import { buildXmpSegment, extractExifSegment, injectJpegSegments, pngWithText, resetExifOrientation } from '@/core/export/fileMeta'
 import { buildFrameLines, computeFrameGeometry, frameHasContent, type FrameExifInput, type FrameGeometry, type FrameLines, type FrameSettings } from '@/core/export/frame'
+import { logoPath, resolveBrandKey, type BrandKey } from '@/core/export/brandLogos'
 import { Renderer } from '@/render/Renderer'
 
 export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'avif'
@@ -151,7 +152,9 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
       const lines = buildFrameLines(job.exif ?? {}, o.frame)
       if (frameHasContent(lines)) {
         const g = computeFrameGeometry(size.w, size.h, o.frame.style, o.frame.position, lines)
-        final = drawFrame(out, g, lines, o.frame, useP3)
+        const brandKey = o.frame.showLogo ? resolveBrandKey(job.exif?.model) : null
+        const logo = brandKey ? await loadBrandLogo(brandKey) : null
+        final = drawFrame(out, g, lines, o.frame, useP3, logo)
       }
     }
 
@@ -204,8 +207,24 @@ const FRAME_COLORS = {
   dark: { bg: '#0c0c0d', primary: '#f2f1ec', secondary: '#9a9a94', divider: 'rgba(255,255,255,0.2)' },
 } as const
 
+// Brand logos are NEVER shipped in this repo (see .gitignore: public/logos/ — third-party trademarks,
+// this project is public). They only exist if the user drops files into that folder on their own machine,
+// so a 404 here is the expected, normal case and is treated the same as "no logo".
+const logoCache = new Map<BrandKey, Promise<ImageBitmap | null>>()
+function loadBrandLogo(key: BrandKey): Promise<ImageBitmap | null> {
+  let p = logoCache.get(key)
+  if (!p) {
+    p = fetch(new URL(`${import.meta.env.BASE_URL}${logoPath(key)}`, location.origin))
+      .then((r) => (r.ok ? r.blob() : null))
+      .then((b) => (b ? createImageBitmap(b) : null))
+      .catch(() => null)
+    logoCache.set(key, p)
+  }
+  return p
+}
+
 /** Draw the photo onto a larger canvas with a caption bar (+ optional margin) per `g`, and return it. */
-function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, frame: FrameSettings, useP3: boolean): OffscreenCanvas {
+function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, frame: FrameSettings, useP3: boolean, logo: ImageBitmap | null): OffscreenCanvas {
   const out = new OffscreenCanvas(g.outW, g.outH)
   const ctx = out.getContext('2d', { colorSpace: useP3 ? 'display-p3' : 'srgb' })!
   const col = FRAME_COLORS[frame.background]
@@ -215,24 +234,32 @@ function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, 
   ctx.drawImage(photo, g.photoX, g.photoY)
 
   const padX = g.align === 'center' ? 0 : Math.round(g.barH * 0.3)
-  const textX = g.align === 'center' ? g.outW / 2 : padX
+  let textX = g.align === 'center' ? g.outW / 2 : padX
+  const logoPadX = Math.round(g.barH * 0.3)
+  if (logo) {
+    const logoH = Math.round(g.barH * 0.5)
+    const logoW = Math.round(logoH * (logo.width / logo.height))
+    ctx.drawImage(logo, logoPadX, g.barY + (g.barH - logoH) / 2, logoW, logoH)
+    if (g.align !== 'center') textX = logoPadX + logoW + Math.round(g.barH * 0.28)
+  }
   ctx.textAlign = g.align
   ctx.textBaseline = 'middle'
+  const maxW = g.align === 'center' ? g.outW - padX * 2 : g.outW - textX - padX
 
   if (g.oneLine) {
     const text = [lines.primary, lines.secondary].filter(Boolean).join('   ·   ')
     ctx.font = `500 ${g.primaryPx}px system-ui, sans-serif`
     ctx.fillStyle = col.primary
-    ctx.fillText(text, textX, g.barY + g.barH / 2, g.outW - padX * 2)
+    ctx.fillText(text, textX, g.barY + g.barH / 2, maxW)
   } else {
     const midY = g.barY + g.barH * 0.5
     const lineGap = g.barH * 0.09
     ctx.font = `600 ${g.primaryPx}px system-ui, sans-serif`
     ctx.fillStyle = col.primary
-    ctx.fillText(lines.primary, textX, midY - lineGap - g.primaryPx * 0.32, g.outW - padX * 2)
+    ctx.fillText(lines.primary, textX, midY - lineGap - g.primaryPx * 0.32, maxW)
     ctx.font = `400 ${g.secondaryPx}px system-ui, sans-serif`
     ctx.fillStyle = col.secondary
-    ctx.fillText(lines.secondary, textX, midY + lineGap + g.secondaryPx * 0.32, g.outW - padX * 2)
+    ctx.fillText(lines.secondary, textX, midY + lineGap + g.secondaryPx * 0.32, maxW)
     if (g.divider) {
       ctx.strokeStyle = col.divider
       ctx.lineWidth = Math.max(1, Math.round(g.barH * 0.012))

@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 public/__test/
+
+# Camera brand logo images (user-supplied, kept local-only — never committed/pushed:
+# these are third-party trademarks and this repo is public). See src/core/export/brandLogos.ts.
+public/logos/
