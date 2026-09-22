@@ -44,5 +44,6 @@ export const RIGHT_SECTIONS: Record<ModuleId, SectionDef[]> = {
     { id: 'exportSettings', title: 'panel.exportSettings', phase: 3 },
     { id: 'fileNaming', title: 'panel.fileNaming', phase: 3 },
     { id: 'watermark', title: 'panel.watermark', phase: 3 },
+    { id: 'frame', title: 'ex.frame', phase: 5 },
   ],
 }

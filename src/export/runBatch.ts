@@ -80,7 +80,9 @@ export async function runBatch() {
     try {
       const file = await usePhotos.getState().getFile(id)
       const params = usePhotos.getState().params[id]!
-      const res = await exportPhoto({ file, params, options, watermarkImage: wmBlob }, (f) => patch(id, { progress: f }))
+      const p = usePhotos.getState().photos[id]
+      const exif = p ? { model: p.camera, lens: p.lens, focalLength: p.focalLength, fNumber: p.fNumber, exposureTime: p.exposureTime, iso: p.iso, capturedAt: p.capturedAt } : undefined
+      const res = await exportPhoto({ file, params, options, watermarkImage: wmBlob, exif }, (f) => patch(id, { progress: f }))
       p3Fallback ||= res.p3Fallback
       if (multi) {
         const f = new ZipPassThrough(names[i]!)

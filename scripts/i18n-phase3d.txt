@@ -1,1 +1,0 @@
-ex.p3Note|Display P3 프로필을 붙여 저장합니다. 원본 색은 sRGB 범위로 처리되므로 색역이 넓어지지는 않습니다.|Saved with a Display P3 profile. Source colours are processed in sRGB, so the gamut is not widened.

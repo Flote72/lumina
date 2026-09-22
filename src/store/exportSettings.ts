@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { DEFAULT_FRAME } from '@/core/export/frame'
 import type { ExportOptions } from '@/export/exporter'
 
 export type ExportScope = 'selection' | 'visible' | 'all'
@@ -27,6 +28,7 @@ interface ExportState {
   setResize: (p: Partial<ExportOptions['resize']>) => void
   setSharpen: (p: Partial<ExportOptions['sharpen']>) => void
   setWatermark: (p: Partial<ExportOptions['watermark']>) => void
+  setFrame: (p: Partial<ExportOptions['frame']>) => void
   setTemplate: (t: string) => void
   setScope: (s: ExportScope) => void
   setWatermarkImage: (d: string | null) => void
@@ -44,6 +46,7 @@ export const DEFAULT_EXPORT: ExportOptions = {
   copyright: '',
   creator: '',
   watermark: { enabled: false, kind: 'text', text: '© Lumina', position: 'br', sizePct: 18, opacity: 70, marginPct: 3 },
+  frame: DEFAULT_FRAME,
 }
 
 export const useExportSettings = create<ExportState>()(
@@ -61,6 +64,7 @@ export const useExportSettings = create<ExportState>()(
       setResize: (p) => set((s) => ({ options: { ...s.options, resize: { ...s.options.resize, ...p } } })),
       setSharpen: (p) => set((s) => ({ options: { ...s.options, sharpen: { ...s.options.sharpen, ...p } } })),
       setWatermark: (p) => set((s) => ({ options: { ...s.options, watermark: { ...s.options.watermark, ...p } } })),
+      setFrame: (p) => set((s) => ({ options: { ...s.options, frame: { ...s.options.frame, ...p } } })),
       setTemplate: (template) => set({ template }),
       setScope: (scope) => set({ scope }),
       setWatermarkImage: (watermarkImage) => set({ watermarkImage }),
@@ -74,7 +78,18 @@ export const useExportSettings = create<ExportState>()(
       // tolerate settings saved by older versions
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ExportState>
-        return { ...current, ...p, options: { ...DEFAULT_EXPORT, ...p.options, resize: { ...DEFAULT_EXPORT.resize, ...p.options?.resize }, sharpen: { ...DEFAULT_EXPORT.sharpen, ...p.options?.sharpen }, watermark: { ...DEFAULT_EXPORT.watermark, ...p.options?.watermark } } }
+        return {
+          ...current,
+          ...p,
+          options: {
+            ...DEFAULT_EXPORT,
+            ...p.options,
+            resize: { ...DEFAULT_EXPORT.resize, ...p.options?.resize },
+            sharpen: { ...DEFAULT_EXPORT.sharpen, ...p.options?.sharpen },
+            watermark: { ...DEFAULT_EXPORT.watermark, ...p.options?.watermark },
+            frame: { ...DEFAULT_EXPORT.frame, ...p.options?.frame },
+          },
+        }
       },
     },
   ),

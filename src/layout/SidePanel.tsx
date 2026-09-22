@@ -3,7 +3,7 @@ import { BasicPanel } from '@/develop/BasicPanel'
 import { HistogramPanel } from '@/develop/Histogram'
 import { PresetsPanel } from '@/develop/left/PresetsPanel'
 import { HistoryPanel, SettingsPanel, SnapshotsPanel } from '@/develop/left/SnapshotsHistoryPanels'
-import { ExportSettingsPanel, FileNamingPanel, WatermarkPanel } from '@/export/ExportPanels'
+import { ExportSettingsPanel, FileNamingPanel, FramePanel, WatermarkPanel } from '@/export/ExportPanels'
 import { MaskPanel } from '@/develop/local/MaskPanel'
 import { RetouchPanel } from '@/develop/local/RetouchPanel'
 import { Navigator } from '@/develop/Navigator'
@@ -25,6 +25,7 @@ const IMPLEMENTED: Partial<Record<string, ReactNode>> = {
   'export.exportSettings': <ExportSettingsPanel />,
   'export.fileNaming': <FileNamingPanel />,
   'export.watermark': <WatermarkPanel />,
+  'export.frame': <FramePanel />,
   'develop.navigator': <Navigator />,
   'develop.presets': <PresetsPanel />,
   'develop.snapshots': <SnapshotsPanel />,

@@ -1,2 +1,0 @@
-group.masks|마스크 (로컬 보정)|Masks (local)
-group.retouch|리터칭 (스팟/적목)|Retouch (spots / red-eye)

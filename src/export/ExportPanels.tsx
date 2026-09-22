@@ -3,6 +3,7 @@ import { Button } from '@/design-system/Button'
 import { Slider } from '@/design-system/Slider'
 import { EmptyState } from '@/design-system/states'
 import { renderTemplate } from '@/core/library/filter'
+import { buildFrameLines, frameHasContent, type FrameBackground, type FramePosition, type FrameStyle } from '@/core/export/frame'
 import type { WatermarkPosition } from '@/core/export/size'
 import { useT, type TKey } from '@/i18n'
 import { useExportSettings, type ExportScope } from '@/store/exportSettings'
@@ -219,6 +220,88 @@ export function WatermarkPanel() {
           <Slider label={t('ex.wm.size')} min={2} max={80} value={wm.sizePct} defaultValue={18} onChange={(v) => setWatermark({ sizePct: v })} />
           <Slider label={t('ex.wm.opacity')} min={5} max={100} value={wm.opacity} defaultValue={70} onChange={(v) => setWatermark({ opacity: v })} />
           <Slider label={t('ex.wm.margin')} min={0} max={20} step={0.5} value={wm.marginPct} defaultValue={3} onChange={(v) => setWatermark({ marginPct: v })} />
+        </>
+      )}
+    </div>
+  )
+}
+
+const FRAME_STYLES: FrameStyle[] = ['minimal', 'strap', 'film']
+const SAMPLE_EXIF = { model: 'Camera Body', lens: 'Lens Name', focalLength: 35, fNumber: 2.8, exposureTime: 1 / 500, iso: 100, capturedAt: 1767225600000 }
+
+/** Caption bar with camera / lens / exposure info, drawn around the exported photo (see core/export/frame.ts). */
+export function FramePanel() {
+  const t = useT()
+  const { options: o, setFrame } = useExportSettings()
+  const fr = o.frame
+  const cur = usePhotos((s) => (s.currentId ? s.photos[s.currentId] : undefined))
+  const previewExif = cur
+    ? { model: cur.camera, lens: cur.lens, focalLength: cur.focalLength, fNumber: cur.fNumber, exposureTime: cur.exposureTime, iso: cur.iso, capturedAt: cur.capturedAt }
+    : SAMPLE_EXIF
+  const lines = buildFrameLines(previewExif, fr)
+  const hasContent = frameHasContent(lines)
+
+  return (
+    <div>
+      <label className="flex items-center gap-2 px-3 py-0.5 text-sm text-fg-1">
+        <input type="checkbox" className="accent-[var(--color-accent)]" checked={fr.enabled} onChange={(e) => setFrame({ enabled: e.target.checked })} />
+        {t('ex.frame.enable')}
+      </label>
+      <p className="px-3 pb-1 text-2xs text-fg-2">{t('ex.frame.note')}</p>
+      {fr.enabled && (
+        <>
+          <Field label={t('ex.frame.style')}>
+            <select className={sel} value={fr.style} onChange={(e) => setFrame({ style: e.target.value as FrameStyle })}>
+              {FRAME_STYLES.map((s) => (
+                <option key={s} value={s}>
+                  {t(`ex.frame.style.${s}` as TKey)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t('ex.frame.position')}>
+            <select className={sel} value={fr.position} onChange={(e) => setFrame({ position: e.target.value as FramePosition })}>
+              <option value="bottom">{t('ex.frame.position.bottom')}</option>
+              <option value="top">{t('ex.frame.position.top')}</option>
+            </select>
+          </Field>
+          <Field label={t('ex.frame.background')}>
+            <select className={sel} value={fr.background} onChange={(e) => setFrame({ background: e.target.value as FrameBackground })}>
+              <option value="light">{t('ex.frame.background.light')}</option>
+              <option value="dark">{t('ex.frame.background.dark')}</option>
+            </select>
+          </Field>
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 py-1.5">
+            {(
+              [
+                ['showCamera', 'ex.frame.showCamera'],
+                ['showLens', 'ex.frame.showLens'],
+                ['showFocalLength', 'ex.frame.showFocalLength'],
+                ['showExposure', 'ex.frame.showExposure'],
+                ['showDate', 'ex.frame.showDate'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-1.5 text-sm text-fg-1">
+                <input type="checkbox" className="accent-[var(--color-accent)]" checked={fr[key]} onChange={(e) => setFrame({ [key]: e.target.checked })} />
+                {t(label)}
+              </label>
+            ))}
+          </div>
+          <Field label={t('ex.frame.customText')}>
+            <input className={inp} value={fr.customText} onChange={(e) => setFrame({ customText: e.target.value })} placeholder={t('ex.frame.customTextPlaceholder')} />
+          </Field>
+
+          {!hasContent && <p className="px-3 pb-1 text-2xs text-danger">{t('ex.frame.empty')}</p>}
+          {hasContent && (
+            <div className="mx-3 mb-2 overflow-hidden rounded-[4px] border border-line">
+              <div className="flex h-16 items-center justify-center bg-bg-3 text-2xs text-fg-2">{t('ex.frame.preview')}</div>
+              <div className={`flex flex-col justify-center gap-0.5 px-3 py-2 ${fr.background === 'dark' ? 'bg-[#0c0c0d] text-[#f2f1ec]' : 'bg-[#f7f6f2] text-[#141414]'} ${fr.style === 'film' ? 'items-center text-center' : 'items-start'}`}>
+                {lines.primary && <div className="text-xs font-semibold">{lines.primary}</div>}
+                {lines.secondary && <div className={`text-2xs ${fr.background === 'dark' ? 'text-[#9a9a94]' : 'text-[#5a5a56]'}`}>{lines.secondary}</div>}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

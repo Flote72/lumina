@@ -1,4 +1,0 @@
-import.rawPreview|"{name}": LibRaw로 현상하지 못해 RAW 안의 미리보기 JPEG로 편집합니다.|"{name}": LibRaw could not develop this file, so its embedded preview JPEG is used.
-meta.raw|RAW 현상|RAW development
-meta.rawLibraw|LibRaw (카메라 화이트밸런스, 8비트 sRGB)|LibRaw (camera white balance, 8-bit sRGB)
-meta.rawPreview|내장 미리보기 JPEG|Embedded preview JPEG

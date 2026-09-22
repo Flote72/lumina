@@ -1,0 +1,180 @@
+/**
+ * "EXIF frame": an information bar rendered next to the photo showing camera / lens / exposure / date,
+ * inspired by the popular "shot on" frame trend. Pure layout logic lives here so it is unit-testable;
+ * `export/exporter.ts` does the actual canvas drawing.
+ */
+
+export type FrameStyle = 'minimal' | 'strap' | 'film'
+export type FramePosition = 'bottom' | 'top'
+export type FrameBackground = 'light' | 'dark'
+
+export interface FrameSettings {
+  enabled: boolean
+  style: FrameStyle
+  position: FramePosition
+  background: FrameBackground
+  showCamera: boolean
+  showLens: boolean
+  showExposure: boolean
+  showFocalLength: boolean
+  showDate: boolean
+  /** free text appended to the secondary line (e.g. a name or location) */
+  customText: string
+}
+
+export const DEFAULT_FRAME: FrameSettings = {
+  enabled: false,
+  style: 'strap',
+  position: 'bottom',
+  background: 'light',
+  showCamera: true,
+  showLens: true,
+  showExposure: true,
+  showFocalLength: true,
+  showDate: false,
+  customText: '',
+}
+
+export interface FrameExifInput {
+  make?: string
+  model?: string
+  lens?: string
+  focalLength?: number | null
+  fNumber?: number | null
+  exposureTime?: number | null
+  iso?: number | null
+  capturedAt?: number | null
+}
+
+const clean = (s: string | undefined) => (s ?? '').trim()
+
+/** "Canon Canon EOS R5" → "Canon EOS R5" (model already repeats the maker). */
+export function joinMakeModel(make: string | undefined, model: string | undefined): string {
+  const mk = clean(make)
+  const md = clean(model)
+  if (!md) return mk
+  if (!mk) return md
+  return md.toLowerCase().startsWith(mk.split(' ')[0]!.toLowerCase()) ? md : `${mk} ${md}`
+}
+
+export function formatShutter(s: number | null | undefined): string {
+  if (!s || s <= 0) return ''
+  return s >= 1 ? `${s % 1 === 0 ? s : s.toFixed(1)}s` : `1/${Math.round(1 / s)}`
+}
+export function formatAperture(f: number | null | undefined): string {
+  return f && f > 0 ? `f/${f % 1 === 0 ? f : f.toFixed(1)}` : ''
+}
+export function formatFocalLength(mm: number | null | undefined): string {
+  return mm && mm > 0 ? `${Math.round(mm)}mm` : ''
+}
+export function formatIso(iso: number | null | undefined): string {
+  return iso && iso > 0 ? `ISO${Math.round(iso)}` : ''
+}
+export function formatDate(ts: number | null | undefined): string {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`
+}
+
+export interface FrameLines {
+  /** camera + lens (the bold/larger line in 'strap' and 'film') */
+  primary: string
+  /** exposure + date + custom text */
+  secondary: string
+}
+
+/** Build the two text lines from EXIF + the chosen toggles. Missing fields are simply omitted. */
+export function buildFrameLines(exif: FrameExifInput, s: FrameSettings): FrameLines {
+  const primaryParts: string[] = []
+  if (s.showCamera) primaryParts.push(joinMakeModel(exif.make, exif.model))
+  if (s.showLens) primaryParts.push(clean(exif.lens))
+
+  const secondaryParts: string[] = []
+  if (s.showFocalLength) secondaryParts.push(formatFocalLength(exif.focalLength))
+  if (s.showExposure) secondaryParts.push(formatAperture(exif.fNumber), formatShutter(exif.exposureTime), formatIso(exif.iso))
+  if (s.showDate) secondaryParts.push(formatDate(exif.capturedAt))
+  if (clean(s.customText)) secondaryParts.push(clean(s.customText))
+
+  return {
+    primary: primaryParts.filter(Boolean).join('  '),
+    secondary: secondaryParts.filter(Boolean).join('   ·   '),
+  }
+}
+
+/** Whether the frame would render anything at all (both lines empty ⇒ skip it, even if enabled). */
+export function frameHasContent(lines: FrameLines): boolean {
+  return lines.primary.length > 0 || lines.secondary.length > 0
+}
+
+export interface StyleChrome {
+  /** bar height as a fraction of the output's short side (two-line height; collapses for one line) */
+  barFrac: number
+  /** photo margin (film style only) as a fraction of the short side, 0 for the others */
+  marginFrac: number
+  divider: boolean
+  align: 'left' | 'center'
+}
+
+const STYLE: Record<FrameStyle, StyleChrome> = {
+  minimal: { barFrac: 0.05, marginFrac: 0, divider: false, align: 'left' },
+  strap: { barFrac: 0.1, marginFrac: 0, divider: true, align: 'left' },
+  film: { barFrac: 0.15, marginFrac: 0.035, divider: false, align: 'center' },
+}
+
+const ONE_LINE_SHRINK = 0.62 // a single-line bar doesn't need the full two-line height
+const PRIMARY_RATIO = 0.36 // font size as a fraction of the bar height
+const SECONDARY_RATIO = 0.22
+const ONE_LINE_RATIO = 0.4
+
+export interface FrameGeometry {
+  /** output canvas size including the frame */
+  outW: number
+  outH: number
+  /** where the photo is drawn */
+  photoX: number
+  photoY: number
+  photoW: number
+  photoH: number
+  /** the info bar's box (full width) */
+  barX: number
+  barY: number
+  barW: number
+  barH: number
+  /** true ⇒ draw `lines.primary + '   ' + lines.secondary` as one centred-vertically line at `primaryPx` */
+  oneLine: boolean
+  primaryPx: number
+  secondaryPx: number
+  divider: boolean
+  align: 'left' | 'center'
+}
+
+/** Pure geometry for a photo of size `w`×`h`, framed per `style`/`position` given what the two lines contain. */
+export function computeFrameGeometry(w: number, h: number, style: FrameStyle, position: FramePosition, lines: FrameLines): FrameGeometry {
+  const chrome = STYLE[style]
+  const bothLines = lines.primary.length > 0 && lines.secondary.length > 0
+  const oneLine = style === 'minimal' || !bothLines
+  const short = Math.min(w, h)
+  const margin = Math.round(short * chrome.marginFrac)
+  const barH = Math.round(short * chrome.barFrac * (oneLine && style !== 'film' ? ONE_LINE_SHRINK : 1))
+  const outW = w + margin * 2
+  const outH = h + margin * 2 + barH
+  const photoY = position === 'top' ? margin + barH : margin
+  return {
+    outW,
+    outH,
+    photoX: margin,
+    photoY,
+    photoW: w,
+    photoH: h,
+    barX: 0,
+    barY: position === 'top' ? 0 : photoY + h,
+    barW: outW,
+    barH,
+    oneLine,
+    primaryPx: Math.max(8, Math.round(barH * (oneLine ? ONE_LINE_RATIO : PRIMARY_RATIO))),
+    secondaryPx: Math.max(7, Math.round(barH * SECONDARY_RATIO)),
+    divider: chrome.divider && !oneLine,
+    align: chrome.align,
+  }
+}

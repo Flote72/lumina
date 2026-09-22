@@ -10,6 +10,7 @@ import {
   type WatermarkPosition,
 } from '@/core/export/size'
 import { buildXmpSegment, extractExifSegment, injectJpegSegments, pngWithText, resetExifOrientation } from '@/core/export/fileMeta'
+import { buildFrameLines, computeFrameGeometry, frameHasContent, type FrameExifInput, type FrameGeometry, type FrameLines, type FrameSettings } from '@/core/export/frame'
 import { Renderer } from '@/render/Renderer'
 
 export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'avif'
@@ -38,6 +39,7 @@ export interface ExportOptions {
   copyright: string
   creator: string
   watermark: WatermarkSettings
+  frame: FrameSettings
 }
 
 export interface ExportJob {
@@ -46,6 +48,8 @@ export interface ExportJob {
   options: ExportOptions
   /** watermark image (kind === 'image') */
   watermarkImage?: Blob
+  /** EXIF fields for the info frame; omit if unknown (the frame then shows only `customText`, if any) */
+  exif?: FrameExifInput
 }
 
 export interface ExportResult {
@@ -142,10 +146,19 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
 
     if (o.watermark.enabled) await drawWatermark(ctx, size.w, size.h, o.watermark, job.watermarkImage)
 
-    let blob = await out.convertToBlob({ type: MIME[o.format], quality: o.quality / 100 })
+    let final: OffscreenCanvas = out
+    if (o.frame.enabled) {
+      const lines = buildFrameLines(job.exif ?? {}, o.frame)
+      if (frameHasContent(lines)) {
+        const g = computeFrameGeometry(size.w, size.h, o.frame.style, o.frame.position, lines)
+        final = drawFrame(out, g, lines, o.frame, useP3)
+      }
+    }
+
+    let blob = await final.convertToBlob({ type: MIME[o.format], quality: o.quality / 100 })
     if (blob.type !== MIME[o.format]) throw new Error(`This browser cannot encode ${o.format.toUpperCase()}`)
     blob = await withMetadata(blob, job.file, o)
-    return { blob, width: size.w, height: size.h, p3Fallback: o.colorSpace === 'display-p3' && !useP3 }
+    return { blob, width: final.width, height: final.height, p3Fallback: o.colorSpace === 'display-p3' && !useP3 }
   } finally {
     bmp?.close()
     scaled?.close()
@@ -184,6 +197,52 @@ async function drawWatermark(ctx: OffscreenCanvasRenderingContext2D, w: number, 
     ctx.fillText(wm.text, x, y)
   }
   ctx.restore()
+}
+
+const FRAME_COLORS = {
+  light: { bg: '#f7f6f2', primary: '#141414', secondary: '#5a5a56', divider: 'rgba(0,0,0,0.16)' },
+  dark: { bg: '#0c0c0d', primary: '#f2f1ec', secondary: '#9a9a94', divider: 'rgba(255,255,255,0.2)' },
+} as const
+
+/** Draw the photo onto a larger canvas with a caption bar (+ optional margin) per `g`, and return it. */
+function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, frame: FrameSettings, useP3: boolean): OffscreenCanvas {
+  const out = new OffscreenCanvas(g.outW, g.outH)
+  const ctx = out.getContext('2d', { colorSpace: useP3 ? 'display-p3' : 'srgb' })!
+  const col = FRAME_COLORS[frame.background]
+
+  ctx.fillStyle = col.bg
+  ctx.fillRect(0, 0, g.outW, g.outH)
+  ctx.drawImage(photo, g.photoX, g.photoY)
+
+  const padX = g.align === 'center' ? 0 : Math.round(g.barH * 0.3)
+  const textX = g.align === 'center' ? g.outW / 2 : padX
+  ctx.textAlign = g.align
+  ctx.textBaseline = 'middle'
+
+  if (g.oneLine) {
+    const text = [lines.primary, lines.secondary].filter(Boolean).join('   ·   ')
+    ctx.font = `500 ${g.primaryPx}px system-ui, sans-serif`
+    ctx.fillStyle = col.primary
+    ctx.fillText(text, textX, g.barY + g.barH / 2, g.outW - padX * 2)
+  } else {
+    const midY = g.barY + g.barH * 0.5
+    const lineGap = g.barH * 0.09
+    ctx.font = `600 ${g.primaryPx}px system-ui, sans-serif`
+    ctx.fillStyle = col.primary
+    ctx.fillText(lines.primary, textX, midY - lineGap - g.primaryPx * 0.32, g.outW - padX * 2)
+    ctx.font = `400 ${g.secondaryPx}px system-ui, sans-serif`
+    ctx.fillStyle = col.secondary
+    ctx.fillText(lines.secondary, textX, midY + lineGap + g.secondaryPx * 0.32, g.outW - padX * 2)
+    if (g.divider) {
+      ctx.strokeStyle = col.divider
+      ctx.lineWidth = Math.max(1, Math.round(g.barH * 0.012))
+      ctx.beginPath()
+      ctx.moveTo(padX, midY)
+      ctx.lineTo(g.outW - padX, midY)
+      ctx.stroke()
+    }
+  }
+  return out
 }
 
 /** JPEG: copy original EXIF (optional) + XMP copyright. PNG: tEXt copyright. Other formats: unchanged. */
