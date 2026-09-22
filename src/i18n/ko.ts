@@ -489,6 +489,8 @@ export const ko = {
   'ex.frame.logoNote': '브랜드를 눌러 이미지를 올리면 그 브랜드 사진의 캡션에 표시됩니다. 이 브라우저에만 저장되고(로컬 스토리지), 저장소에 커밋되거나 배포되지 않습니다.',
   'ex.frame.logoUpload': '이미지 올리기',
   'ex.frame.logoRemove': '로고 삭제',
+  'ex.frame.lensOverride': '렌즈 이름 직접 입력',
+  'ex.frame.lensOverridePlaceholder': '예: SIGMA 85mm f1.4 EX DG HSM (비워두면 EXIF 렌즈 사용)',
 } as const
 
 export type TKey = keyof typeof ko

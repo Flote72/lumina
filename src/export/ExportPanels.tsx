@@ -3,7 +3,18 @@ import { Button } from '@/design-system/Button'
 import { Slider } from '@/design-system/Slider'
 import { EmptyState } from '@/design-system/states'
 import { renderTemplate } from '@/core/library/filter'
-import { buildFrameLines, frameHasContent, type FrameBackground, type FrameLines, type FramePosition, type FrameSettings, type FrameStyle } from '@/core/export/frame'
+import {
+  buildFrameLines,
+  buildStrapParts,
+  frameHasContent,
+  strapHasContent,
+  type FrameBackground,
+  type FrameLines,
+  type FramePosition,
+  type FrameSettings,
+  type FrameStyle,
+  type StrapParts,
+} from '@/core/export/frame'
 import { BRAND_KEYS, BRAND_LABELS, resolveBrandKey, type BrandKey } from '@/core/export/brandLogos'
 import type { WatermarkPosition } from '@/core/export/size'
 import { useT, type TKey } from '@/i18n'
@@ -353,6 +364,39 @@ function FrameCaption({ fr, lines, cameraText }: { fr: FrameSettings; lines: Fra
   )
 }
 
+/**
+ * CSS approximation of the Strap style's fixed two-column layout (see core/export/frame.ts drawStrapFrame):
+ * left = exposure (bold) / date (gray); right = logo + divider + camera (bold) / lens (gray).
+ */
+function StrapCaption({ fr, parts, cameraText }: { fr: FrameSettings; parts: StrapParts; cameraText: string | undefined }) {
+  const dark = fr.background === 'dark'
+  const primary = dark ? 'text-[#f2f1ec]' : 'text-[#141414]'
+  const secondary = dark ? 'text-[#9a9a94]' : 'text-[#5a5a56]'
+  const hasRight = !!(parts.camera || parts.lens)
+  return (
+    <div className="flex items-center justify-between gap-3 px-3 py-2">
+      <div className="flex min-w-0 flex-col justify-center gap-0.5">
+        {parts.exposure && <div className={`truncate text-xs font-semibold ${primary}`}>{parts.exposure}</div>}
+        {parts.date && <div className={`truncate text-2xs ${secondary}`}>{parts.date}</div>}
+      </div>
+      {(hasRight || fr.showLogo) && (
+        <div className="flex min-w-0 items-center gap-2">
+          {fr.showLogo && <BrandLogo cameraText={cameraText} className="h-5 w-5 shrink-0 object-contain" />}
+          {hasRight && (
+            <>
+              {fr.showLogo && <div className={`h-6 w-px shrink-0 ${dark ? 'bg-white/20' : 'bg-black/15'}`} />}
+              <div className="flex min-w-0 flex-col items-end justify-center gap-0.5 text-right">
+                {parts.camera && <div className={`truncate text-xs font-semibold ${primary}`}>{parts.camera}</div>}
+                {parts.lens && <div className={`truncate text-2xs ${secondary}`}>{parts.lens}</div>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Caption bar with camera / lens / exposure info, drawn around the exported photo (see core/export/frame.ts). */
 export function FramePanel() {
   const t = useT()
@@ -362,8 +406,10 @@ export function FramePanel() {
   const previewExif = cur
     ? { model: cur.camera, lens: cur.lens, focalLength: cur.focalLength, fNumber: cur.fNumber, exposureTime: cur.exposureTime, iso: cur.iso, capturedAt: cur.capturedAt }
     : SAMPLE_EXIF
+  const isStrap = fr.style === 'strap'
   const lines = buildFrameLines(previewExif, fr)
-  const hasContent = frameHasContent(lines)
+  const strapParts = buildStrapParts(previewExif, fr)
+  const hasContent = isStrap ? strapHasContent(strapParts) : frameHasContent(lines)
 
   return (
     <div>
@@ -406,13 +452,20 @@ export function FramePanel() {
                 ['showDate', 'ex.frame.showDate'],
                 ['showLogo', 'ex.frame.showLogo'],
               ] as const
-            ).map(([key, label]) => (
-              <label key={key} className="flex items-center gap-1.5 text-sm text-fg-1">
-                <input type="checkbox" className="accent-[var(--color-accent)]" checked={fr[key]} onChange={(e) => setFrame({ [key]: e.target.checked })} />
-                {t(label)}
-              </label>
-            ))}
+            )
+              .filter(([key]) => key !== 'showFocalLength' || !isStrap) // baked into the manual lens name on Strap
+              .map(([key, label]) => (
+                <label key={key} className="flex items-center gap-1.5 text-sm text-fg-1">
+                  <input type="checkbox" className="accent-[var(--color-accent)]" checked={fr[key]} onChange={(e) => setFrame({ [key]: e.target.checked })} />
+                  {t(label)}
+                </label>
+              ))}
           </div>
+          {fr.showLens && (
+            <Field label={t('ex.frame.lensOverride')}>
+              <input className={inp} value={fr.lensOverride} onChange={(e) => setFrame({ lensOverride: e.target.value })} placeholder={t('ex.frame.lensOverridePlaceholder')} />
+            </Field>
+          )}
           <Field label={t('ex.frame.customText')}>
             <input className={inp} value={fr.customText} onChange={(e) => setFrame({ customText: e.target.value })} placeholder={t('ex.frame.customTextPlaceholder')} />
           </Field>
@@ -422,7 +475,8 @@ export function FramePanel() {
           {hasContent && (
             <div className="mx-3 mb-2 overflow-hidden rounded-[4px] border border-line" aria-label={t('ex.frame.preview')}>
               <div className={`flex flex-col ${fr.background === 'dark' ? 'bg-[#0c0c0d]' : 'bg-[#f7f6f2]'} ${fr.style === 'film' ? 'gap-2 p-[5%]' : 'gap-0'}`}>
-                {fr.position === 'top' && <FrameCaption fr={fr} lines={lines} cameraText={previewExif.model} />}
+                {fr.position === 'top' &&
+                  (isStrap ? <StrapCaption fr={fr} parts={strapParts} cameraText={previewExif.model} /> : <FrameCaption fr={fr} lines={lines} cameraText={previewExif.model} />)}
                 {cur?.thumbUrl ? (
                   <img
                     src={cur.thumbUrl}
@@ -433,7 +487,8 @@ export function FramePanel() {
                 ) : (
                   <div className="flex aspect-[3/2] items-center justify-center bg-bg-3 text-2xs text-fg-2">{t('lib.selectPhoto')}</div>
                 )}
-                {fr.position === 'bottom' && <FrameCaption fr={fr} lines={lines} cameraText={previewExif.model} />}
+                {fr.position === 'bottom' &&
+                  (isStrap ? <StrapCaption fr={fr} parts={strapParts} cameraText={previewExif.model} /> : <FrameCaption fr={fr} lines={lines} cameraText={previewExif.model} />)}
               </div>
             </div>
           )}

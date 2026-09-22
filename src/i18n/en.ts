@@ -491,4 +491,6 @@ export const en: Record<TKey, string> = {
   'ex.frame.logoNote': 'Click a brand to upload an image; it then shows up in the caption for photos of that brand. Stored only in this browser (localStorage) — never committed or deployed.',
   'ex.frame.logoUpload': 'Upload image',
   'ex.frame.logoRemove': 'Remove logo',
+  'ex.frame.lensOverride': 'Lens name (manual)',
+  'ex.frame.lensOverridePlaceholder': 'e.g. SIGMA 85mm f1.4 EX DG HSM (uses EXIF lens if empty)',
 }

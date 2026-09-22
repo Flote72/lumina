@@ -10,7 +10,18 @@ import {
   type WatermarkPosition,
 } from '@/core/export/size'
 import { buildXmpSegment, extractExifSegment, injectJpegSegments, pngWithText, resetExifOrientation } from '@/core/export/fileMeta'
-import { buildFrameLines, computeFrameGeometry, frameHasContent, type FrameExifInput, type FrameGeometry, type FrameLines, type FrameSettings } from '@/core/export/frame'
+import {
+  buildFrameLines,
+  buildStrapParts,
+  computeFrameGeometry,
+  frameHasContent,
+  strapHasContent,
+  type FrameExifInput,
+  type FrameGeometry,
+  type FrameLines,
+  type FrameSettings,
+  type StrapParts,
+} from '@/core/export/frame'
 import { Renderer } from '@/render/Renderer'
 
 export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'avif'
@@ -150,11 +161,22 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
 
     let final: OffscreenCanvas = out
     if (o.frame.enabled) {
-      const lines = buildFrameLines(job.exif ?? {}, o.frame)
-      if (frameHasContent(lines)) {
-        const g = computeFrameGeometry(size.w, size.h, o.frame.style, o.frame.position, lines)
-        const logo = o.frame.showLogo && job.frameLogo ? await decodeLogo(job.frameLogo) : null
-        final = drawFrame(out, g, lines, o.frame, useP3, logo)
+      if (o.frame.style === 'strap') {
+        const parts = buildStrapParts(job.exif ?? {}, o.frame)
+        if (strapHasContent(parts)) {
+          // Strap always reserves the full two-row bar height (per its fixed layout), regardless of
+          // which parts are present — pass non-empty dummy lines so computeFrameGeometry doesn't shrink it.
+          const g = computeFrameGeometry(size.w, size.h, 'strap', o.frame.position, { primary: 'x', secondary: 'x' })
+          const logo = o.frame.showLogo && job.frameLogo ? await decodeLogo(job.frameLogo) : null
+          final = drawStrapFrame(out, g, parts, o.frame, useP3, logo)
+        }
+      } else {
+        const lines = buildFrameLines(job.exif ?? {}, o.frame)
+        if (frameHasContent(lines)) {
+          const g = computeFrameGeometry(size.w, size.h, o.frame.style, o.frame.position, lines)
+          const logo = o.frame.showLogo && job.frameLogo ? await decodeLogo(job.frameLogo) : null
+          final = drawFrame(out, g, lines, o.frame, useP3, logo)
+        }
       }
     }
 
@@ -270,6 +292,85 @@ function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, 
       ctx.stroke()
     }
   }
+  return out
+}
+
+/**
+ * Strap style's fixed layout: left column = exposure (bold) over full date/time (gray); right column =
+ * logo, a thin vertical divider, then camera (bold) over lens (gray) — the whole right group right-aligned.
+ */
+function drawStrapFrame(photo: OffscreenCanvas, g: FrameGeometry, parts: StrapParts, frame: FrameSettings, useP3: boolean, logo: ImageBitmap | null): OffscreenCanvas {
+  const out = new OffscreenCanvas(g.outW, g.outH)
+  const ctx = out.getContext('2d', { colorSpace: useP3 ? 'display-p3' : 'srgb' })!
+  const col = FRAME_COLORS[frame.background]
+
+  ctx.fillStyle = col.bg
+  ctx.fillRect(0, 0, g.outW, g.outH)
+  ctx.drawImage(photo, g.photoX, g.photoY)
+
+  const pad = Math.round(g.barH * 0.3)
+  const midY = g.barY + g.barH * 0.5
+  const lineGap = g.barH * 0.09
+  const topY = midY - lineGap - g.primaryPx * 0.32
+  const botY = midY + lineGap + g.secondaryPx * 0.32
+  const boldFont = `600 ${g.primaryPx}px system-ui, sans-serif`
+  const lightFont = `400 ${g.secondaryPx}px system-ui, sans-serif`
+
+  ctx.textBaseline = 'middle'
+
+  // Left column
+  ctx.textAlign = 'left'
+  if (parts.exposure) {
+    ctx.font = boldFont
+    ctx.fillStyle = col.primary
+    ctx.fillText(parts.exposure, pad, topY)
+  }
+  if (parts.date) {
+    ctx.font = lightFont
+    ctx.fillStyle = col.secondary
+    ctx.fillText(parts.date, pad, botY)
+  }
+
+  // Right column (camera / lens), right-aligned as a group, with the logo + divider to its left
+  const rightEdge = g.outW - pad
+  const hasRightText = !!(parts.camera || parts.lens)
+  if (hasRightText) {
+    ctx.textAlign = 'right'
+    ctx.font = boldFont
+    const cameraW = parts.camera ? ctx.measureText(parts.camera).width : 0
+    ctx.font = lightFont
+    const lensW = parts.lens ? ctx.measureText(parts.lens).width : 0
+    const textLeftX = rightEdge - Math.max(cameraW, lensW)
+
+    if (parts.camera) {
+      ctx.font = boldFont
+      ctx.fillStyle = col.primary
+      ctx.fillText(parts.camera, rightEdge, topY)
+    }
+    if (parts.lens) {
+      ctx.font = lightFont
+      ctx.fillStyle = col.secondary
+      ctx.fillText(parts.lens, rightEdge, botY)
+    }
+    if (logo) {
+      const dividerX = textLeftX - Math.round(g.barH * 0.22)
+      ctx.strokeStyle = col.divider
+      ctx.lineWidth = Math.max(1, Math.round(g.barH * 0.012))
+      ctx.beginPath()
+      ctx.moveTo(dividerX, g.barY + g.barH * 0.22)
+      ctx.lineTo(dividerX, g.barY + g.barH * 0.78)
+      ctx.stroke()
+
+      const logoH = Math.round(g.barH * 0.46)
+      const logoW = Math.round(logoH * (logo.width / logo.height))
+      ctx.drawImage(logo, dividerX - Math.round(g.barH * 0.22) - logoW, g.barY + (g.barH - logoH) / 2, logoW, logoH)
+    }
+  } else if (logo) {
+    const logoH = Math.round(g.barH * 0.46)
+    const logoW = Math.round(logoH * (logo.width / logo.height))
+    ctx.drawImage(logo, rightEdge - logoW, g.barY + (g.barH - logoH) / 2, logoW, logoH)
+  }
+
   return out
 }
 

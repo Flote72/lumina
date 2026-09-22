@@ -20,8 +20,10 @@ export interface FrameSettings {
   showDate: boolean
   /** free text appended to the secondary line (e.g. a name or location) */
   customText: string
-  /** show a brand logo next to the camera name, IF one exists locally (see core/export/brandLogos.ts) */
+  /** show a brand logo next to the camera name, IF one has been uploaded (see store/exportSettings.ts) */
   showLogo: boolean
+  /** manual lens name; overrides the EXIF lens string when non-empty (EXIF lens names are often empty or messy) */
+  lensOverride: string
 }
 
 export const DEFAULT_FRAME: FrameSettings = {
@@ -33,9 +35,10 @@ export const DEFAULT_FRAME: FrameSettings = {
   showLens: true,
   showExposure: true,
   showFocalLength: true,
-  showDate: false,
+  showDate: true,
   customText: '',
   showLogo: true,
+  lensOverride: '',
 }
 
 export interface FrameExifInput {
@@ -62,10 +65,15 @@ export function joinMakeModel(make: string | undefined, model: string | undefine
 
 export function formatShutter(s: number | null | undefined): string {
   if (!s || s <= 0) return ''
-  return s >= 1 ? `${s % 1 === 0 ? s : s.toFixed(1)}s` : `1/${Math.round(1 / s)}`
+  return s >= 1 ? `${s % 1 === 0 ? s : s.toFixed(1)}s` : `1/${Math.round(1 / s)}s`
 }
+/** "f/8" — used in the generic (minimal/film) secondary line. */
 export function formatAperture(f: number | null | undefined): string {
   return f && f > 0 ? `f/${f % 1 === 0 ? f : f.toFixed(1)}` : ''
+}
+/** "F8" — the bare, capital-F form used on the Strap style's exposure line. */
+export function formatFStop(f: number | null | undefined): string {
+  return f && f > 0 ? `F${f % 1 === 0 ? f : f.toFixed(1)}` : ''
 }
 export function formatFocalLength(mm: number | null | undefined): string {
   return mm && mm > 0 ? `${Math.round(mm)}mm` : ''
@@ -79,6 +87,13 @@ export function formatDate(ts: number | null | undefined): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`
 }
+/** "2026/07/19 13:47:44" — full date + time, used on the Strap style's left column. */
+export function formatDateTime(ts: number | null | undefined): string {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
 
 export interface FrameLines {
   /** camera + lens (the bold/larger line in 'strap' and 'film') */
@@ -87,11 +102,16 @@ export interface FrameLines {
   secondary: string
 }
 
+/** Manual override, if set, else the EXIF value — used for the lens name everywhere in the frame. */
+function lensText(exif: FrameExifInput, s: FrameSettings): string {
+  return clean(s.lensOverride) || clean(exif.lens)
+}
+
 /** Build the two text lines from EXIF + the chosen toggles. Missing fields are simply omitted. */
 export function buildFrameLines(exif: FrameExifInput, s: FrameSettings): FrameLines {
   const primaryParts: string[] = []
   if (s.showCamera) primaryParts.push(joinMakeModel(exif.make, exif.model))
-  if (s.showLens) primaryParts.push(clean(exif.lens))
+  if (s.showLens) primaryParts.push(lensText(exif, s))
 
   const secondaryParts: string[] = []
   if (s.showFocalLength) secondaryParts.push(formatFocalLength(exif.focalLength))
@@ -108,6 +128,33 @@ export function buildFrameLines(exif: FrameExifInput, s: FrameSettings): FrameLi
 /** Whether the frame would render anything at all (both lines empty ⇒ skip it, even if enabled). */
 export function frameHasContent(lines: FrameLines): boolean {
   return lines.primary.length > 0 || lines.secondary.length > 0
+}
+
+/**
+ * The Strap style's fixed, four-part composition (see the reference layout): a left column with the
+ * exposure settings and full timestamp, and a right column with the logo, camera and lens name.
+ */
+export interface StrapParts {
+  /** "ISO320 F8 1/800s" */
+  exposure: string
+  /** "2026/07/19 13:47:44" */
+  date: string
+  camera: string
+  lens: string
+}
+
+export function buildStrapParts(exif: FrameExifInput, s: FrameSettings): StrapParts {
+  const exposure = s.showExposure ? [formatIso(exif.iso), formatFStop(exif.fNumber), formatShutter(exif.exposureTime)].filter(Boolean).join(' ') : ''
+  return {
+    exposure,
+    date: s.showDate ? formatDateTime(exif.capturedAt) : '',
+    camera: s.showCamera ? joinMakeModel(exif.make, exif.model) : '',
+    lens: s.showLens ? lensText(exif, s) : '',
+  }
+}
+
+export function strapHasContent(p: StrapParts): boolean {
+  return !!(p.exposure || p.date || p.camera || p.lens)
 }
 
 export interface StyleChrome {
