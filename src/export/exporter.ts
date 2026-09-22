@@ -11,7 +11,6 @@ import {
 } from '@/core/export/size'
 import { buildXmpSegment, extractExifSegment, injectJpegSegments, pngWithText, resetExifOrientation } from '@/core/export/fileMeta'
 import { buildFrameLines, computeFrameGeometry, frameHasContent, type FrameExifInput, type FrameGeometry, type FrameLines, type FrameSettings } from '@/core/export/frame'
-import { logoPath, resolveBrandKey, type BrandKey } from '@/core/export/brandLogos'
 import { Renderer } from '@/render/Renderer'
 
 export type ExportFormat = 'jpeg' | 'png' | 'webp' | 'avif'
@@ -51,6 +50,8 @@ export interface ExportJob {
   watermarkImage?: Blob
   /** EXIF fields for the info frame; omit if unknown (the frame then shows only `customText`, if any) */
   exif?: FrameExifInput
+  /** brand logo for the info frame, as a data URL (resolved from EXIF on the main thread — see runBatch.ts) */
+  frameLogo?: string
 }
 
 export interface ExportResult {
@@ -152,8 +153,7 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
       const lines = buildFrameLines(job.exif ?? {}, o.frame)
       if (frameHasContent(lines)) {
         const g = computeFrameGeometry(size.w, size.h, o.frame.style, o.frame.position, lines)
-        const brandKey = o.frame.showLogo ? resolveBrandKey(job.exif?.model) : null
-        const logo = brandKey ? await loadBrandLogo(brandKey) : null
+        const logo = o.frame.showLogo && job.frameLogo ? await decodeLogo(job.frameLogo) : null
         final = drawFrame(out, g, lines, o.frame, useP3, logo)
       }
     }
@@ -207,18 +207,19 @@ const FRAME_COLORS = {
   dark: { bg: '#0c0c0d', primary: '#f2f1ec', secondary: '#9a9a94', divider: 'rgba(255,255,255,0.2)' },
 } as const
 
-// Brand logos are NEVER shipped in this repo (see .gitignore: public/logos/ — third-party trademarks,
-// this project is public). They only exist if the user drops files into that folder on their own machine,
-// so a 404 here is the expected, normal case and is treated the same as "no logo".
-const logoCache = new Map<BrandKey, Promise<ImageBitmap | null>>()
-function loadBrandLogo(key: BrandKey): Promise<ImageBitmap | null> {
-  let p = logoCache.get(key)
+// Brand logos are never bundled with the app (third-party trademarks, this project is public). If the
+// user has uploaded one for the photo's brand (Export → EXIF Frame), it arrives here as a data URL — kept
+// only in that browser's localStorage, never written to disk or committed. Cached per data URL so a
+// batch export of many photos from the same brand decodes it once.
+const logoCache = new Map<string, Promise<ImageBitmap | null>>()
+function decodeLogo(dataUrl: string): Promise<ImageBitmap | null> {
+  let p = logoCache.get(dataUrl)
   if (!p) {
-    p = fetch(new URL(`${import.meta.env.BASE_URL}${logoPath(key)}`, location.origin))
-      .then((r) => (r.ok ? r.blob() : null))
-      .then((b) => (b ? createImageBitmap(b) : null))
+    p = fetch(dataUrl)
+      .then((r) => r.blob())
+      .then((b) => createImageBitmap(b))
       .catch(() => null)
-    logoCache.set(key, p)
+    logoCache.set(dataUrl, p)
   }
   return p
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { BrandKey } from '@/core/export/brandLogos'
 import { DEFAULT_FRAME } from '@/core/export/frame'
 import type { ExportOptions } from '@/export/exporter'
 
@@ -19,6 +20,8 @@ interface ExportState {
   scope: ExportScope
   /** watermark image as a data URL (kept small) */
   watermarkImage: string | null
+  /** EXIF-frame brand logos, per brand, as data URLs — local only, never leaves this browser */
+  brandLogos: Partial<Record<BrandKey, string>>
   // run state (not persisted)
   running: boolean
   items: ItemState[]
@@ -32,6 +35,7 @@ interface ExportState {
   setTemplate: (t: string) => void
   setScope: (s: ExportScope) => void
   setWatermarkImage: (d: string | null) => void
+  setBrandLogo: (key: BrandKey, dataUrl: string | null) => void
   patchItem: (id: string, p: Partial<ItemState>) => void
   setRun: (r: { running?: boolean; items?: ItemState[]; summary?: string | null }) => void
 }
@@ -56,6 +60,7 @@ export const useExportSettings = create<ExportState>()(
       template: '{name}_{seq3}',
       scope: 'selection',
       watermarkImage: null,
+      brandLogos: {},
       running: false,
       items: [],
       summary: null,
@@ -68,19 +73,27 @@ export const useExportSettings = create<ExportState>()(
       setTemplate: (template) => set({ template }),
       setScope: (scope) => set({ scope }),
       setWatermarkImage: (watermarkImage) => set({ watermarkImage }),
+      setBrandLogo: (key, dataUrl) =>
+        set((s) => {
+          const brandLogos = { ...s.brandLogos }
+          if (dataUrl) brandLogos[key] = dataUrl
+          else delete brandLogos[key]
+          return { brandLogos }
+        }),
       patchItem: (id, p) => set((s) => ({ items: s.items.map((i) => (i.id === id ? { ...i, ...p } : i)) })),
       setRun: (r) => set(r as Partial<ExportState>),
     }),
     {
       name: 'lumina.export',
       version: 1,
-      partialize: (s) => ({ options: s.options, template: s.template, scope: s.scope, watermarkImage: s.watermarkImage }),
+      partialize: (s) => ({ options: s.options, template: s.template, scope: s.scope, watermarkImage: s.watermarkImage, brandLogos: s.brandLogos }),
       // tolerate settings saved by older versions
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ExportState>
         return {
           ...current,
           ...p,
+          brandLogos: p.brandLogos ?? {},
           options: {
             ...DEFAULT_EXPORT,
             ...p.options,

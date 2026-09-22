@@ -487,6 +487,8 @@ export const en: Record<TKey, string> = {
   'ex.frame.customTextPlaceholder': 'e.g. your name, a location',
   'ex.frame.empty': 'Nothing is enabled, so no frame will be drawn. Turn on at least one item above.',
   'ex.frame.preview': 'Preview',
-  'ex.frame.showLogo': 'Logo (local file)',
-  'ex.frame.logoNote': 'Logos are not part of this repository. They only appear on a machine where you\'ve placed brand PNG files (e.g. canon.png, nikon.png, sony.png) in the public/logos/ folder yourself — otherwise it silently falls back to text only.',
+  'ex.frame.showLogo': 'Logo',
+  'ex.frame.logoNote': 'Click a brand to upload an image; it then shows up in the caption for photos of that brand. Stored only in this browser (localStorage) — never committed or deployed.',
+  'ex.frame.logoUpload': 'Upload image',
+  'ex.frame.logoRemove': 'Remove logo',
 }

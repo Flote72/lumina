@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { logoPath, resolveBrandKey } from './brandLogos'
+import { BRAND_KEYS, BRAND_LABELS, resolveBrandKey } from './brandLogos'
 
 describe('resolveBrandKey', () => {
   it('matches real-world EXIF Make/Model strings', () => {
@@ -29,9 +29,9 @@ describe('resolveBrandKey', () => {
   })
 })
 
-describe('logoPath', () => {
-  it('builds a stable relative path per key', () => {
-    expect(logoPath('canon')).toBe('logos/canon.png')
-    expect(logoPath('fujifilm')).toBe('logos/fujifilm.png')
+describe('BRAND_LABELS', () => {
+  it('has a display label for every brand key, and only known keys', () => {
+    for (const key of BRAND_KEYS) expect(BRAND_LABELS[key]).toBeTruthy()
+    expect(Object.keys(BRAND_LABELS).sort()).toEqual([...BRAND_KEYS].sort())
   })
 })

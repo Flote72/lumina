@@ -4,7 +4,7 @@ import { Slider } from '@/design-system/Slider'
 import { EmptyState } from '@/design-system/states'
 import { renderTemplate } from '@/core/library/filter'
 import { buildFrameLines, frameHasContent, type FrameBackground, type FrameLines, type FramePosition, type FrameSettings, type FrameStyle } from '@/core/export/frame'
-import { logoPath, resolveBrandKey } from '@/core/export/brandLogos'
+import { BRAND_KEYS, BRAND_LABELS, resolveBrandKey, type BrandKey } from '@/core/export/brandLogos'
 import type { WatermarkPosition } from '@/core/export/size'
 import { useT, type TKey } from '@/i18n'
 import { useExportSettings, type ExportScope } from '@/store/exportSettings'
@@ -230,15 +230,105 @@ export function WatermarkPanel() {
 const FRAME_STYLES: FrameStyle[] = ['minimal', 'strap', 'film']
 const SAMPLE_EXIF = { model: 'Camera Body', lens: 'Lens Name', focalLength: 35, fNumber: 2.8, exposureTime: 1 / 500, iso: 100, capturedAt: 1767225600000 }
 
-/**
- * A local-only brand logo, if the user has dropped `public/logos/<brand>.png` into their own build
- * (see core/export/brandLogos.ts — these files are never part of the repo). Renders nothing on 404.
- */
+/** A brand logo the user has uploaded (Export → EXIF Frame → logo grid), if any. Local only (see store). */
 function BrandLogo({ cameraText, className }: { cameraText: string | undefined; className: string }) {
-  const [broken, setBroken] = useState(false)
   const key = resolveBrandKey(cameraText)
-  if (!key || broken) return null
-  return <img src={`${import.meta.env.BASE_URL}${logoPath(key)}`} alt="" className={className} onError={() => setBroken(true)} />
+  const src = useExportSettings((s) => (key ? s.brandLogos[key] : undefined))
+  if (!src) return null
+  return <img src={src} alt="" className={className} />
+}
+
+/** Downscale an uploaded image to a small PNG data URL (keeps localStorage lean; drawing scales to text height anyway). */
+function fileToLogoDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      const max = 160
+      const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
+      const w = Math.max(1, Math.round(img.naturalWidth * k))
+      const h = Math.max(1, Math.round(img.naturalHeight * k))
+      const c = document.createElement('canvas')
+      c.width = w
+      c.height = h
+      const ctx = c.getContext('2d')!
+      ctx.drawImage(img, 0, 0, w, h)
+      URL.revokeObjectURL(img.src)
+      resolve(c.toDataURL('image/png'))
+    }
+    img.onerror = () => reject(new Error('image decode failed'))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+/**
+ * Per-brand logo upload grid. Each tile is a fixed-size drop target so the layout stays tidy whether
+ * a brand has an image or not. Images are stored as data URLs in this browser's localStorage only —
+ * never written to a file or committed (camera brand marks are third-party trademarks).
+ */
+function BrandLogoGrid() {
+  const t = useT()
+  const logos = useExportSettings((s) => s.brandLogos)
+  const setBrandLogo = useExportSettings((s) => s.setBrandLogo)
+  const inputs = useRef<Partial<Record<BrandKey, HTMLInputElement | null>>>({})
+
+  const pick = async (key: BrandKey, file: File | undefined) => {
+    if (!file) return
+    try {
+      setBrandLogo(key, await fileToLogoDataUrl(file))
+    } catch {
+      /* not a decodable image — ignore */
+    }
+  }
+
+  return (
+    <div>
+      <p className="px-3 pb-1.5 text-2xs text-fg-2">{t('ex.frame.logoNote')}</p>
+      <div className="grid grid-cols-4 gap-2 px-3 pb-2">
+        {BRAND_KEYS.map((key) => {
+          const src = logos[key]
+          return (
+            <div key={key} className="flex flex-col items-center gap-1">
+              <div className="group relative">
+                <button
+                  type="button"
+                  onClick={() => inputs.current[key]?.click()}
+                  aria-label={`${BRAND_LABELS[key]}: ${t('ex.frame.logoUpload')}`}
+                  title={BRAND_LABELS[key]}
+                  className={`flex size-12 items-center justify-center overflow-hidden rounded-[5px] border ${src ? 'border-line bg-bg-0' : 'border-dashed border-line-strong bg-bg-2 hover:border-fg-2'}`}
+                >
+                  {src ? <img src={src} alt="" className="size-full object-contain p-1" /> : <span className="text-base text-fg-2">+</span>}
+                </button>
+                {src && (
+                  <button
+                    type="button"
+                    onClick={() => setBrandLogo(key, null)}
+                    aria-label={`${BRAND_LABELS[key]}: ${t('ex.frame.logoRemove')}`}
+                    title={t('ex.frame.logoRemove')}
+                    className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full border border-line-strong bg-bg-3 text-2xs leading-none text-fg-1 opacity-0 hover:text-danger group-hover:opacity-100 group-focus-within:opacity-100"
+                  >
+                    ×
+                  </button>
+                )}
+                <input
+                  ref={(el) => {
+                    inputs.current[key] = el
+                  }}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    void pick(key, e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+              </div>
+              <span className="max-w-12 truncate text-center text-[9px] text-fg-2">{BRAND_LABELS[key]}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 /** CSS approximation of the caption bar drawn by core/export/frame.ts — close enough for a settings-panel preview. */
@@ -326,7 +416,7 @@ export function FramePanel() {
           <Field label={t('ex.frame.customText')}>
             <input className={inp} value={fr.customText} onChange={(e) => setFrame({ customText: e.target.value })} placeholder={t('ex.frame.customTextPlaceholder')} />
           </Field>
-          {fr.showLogo && <p className="px-3 pb-1 text-2xs text-fg-2">{t('ex.frame.logoNote')}</p>}
+          {fr.showLogo && <BrandLogoGrid />}
 
           {!hasContent && <p className="px-3 pb-1 text-2xs text-danger">{t('ex.frame.empty')}</p>}
           {hasContent && (

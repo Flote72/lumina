@@ -1,10 +1,10 @@
 /**
  * Maps an EXIF camera name to a brand key so the frame can show a small logo next to it.
  *
- * The logo images themselves are never part of this repository (see `.gitignore`: `public/logos/`) —
- * camera brand marks are third-party trademarks and this project is a public repo. If you want logos in
- * your own local build, drop `<key>.png` files (transparent background, roughly square) into
- * `public/logos/`; they are picked up automatically and simply don't exist in the public deployment.
+ * The logo images themselves are never part of this repository or its build — camera brand marks are
+ * third-party trademarks and this project is public. Instead, `store/exportSettings.ts` lets the user
+ * upload a logo per brand from Export → EXIF Frame; each is kept only as a data URL in that browser's
+ * localStorage (see `BrandLogoGrid` in `export/ExportPanels.tsx`), never written to disk or committed.
  */
 
 export const BRAND_KEYS = [
@@ -54,7 +54,11 @@ export function resolveBrandKey(cameraText: string | undefined | null): BrandKey
   return null
 }
 
-/** Published path of a brand's logo file, relative to the app root (may 404 — that's expected/fine). */
-export function logoPath(key: BrandKey): string {
-  return `logos/${key}.png`
+/** Display label for the upload grid (a few keys need proper casing that `key` alone doesn't give). */
+export const BRAND_LABELS: Record<BrandKey, string> = {
+  canon: 'Canon', nikon: 'Nikon', sony: 'Sony', fujifilm: 'Fujifilm', panasonic: 'Panasonic',
+  olympus: 'Olympus / OM', pentax: 'Pentax', ricoh: 'Ricoh', leica: 'Leica', hasselblad: 'Hasselblad',
+  sigma: 'Sigma', kodak: 'Kodak', casio: 'Casio', phaseone: 'Phase One', apple: 'Apple',
+  samsung: 'Samsung', google: 'Google', huawei: 'Huawei', xiaomi: 'Xiaomi', oneplus: 'OnePlus',
+  gopro: 'GoPro', dji: 'DJI', insta360: 'Insta360',
 }

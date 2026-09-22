@@ -51,19 +51,8 @@ RAW/AI 기능은 처음 사용할 때 WASM(각각 약 1.4MB / 14MB)과 모델(4.
 
 ## EXIF 프레임의 카메라 브랜드 로고 (선택, 로컬 전용)
 
-Export의 "EXIF Frame" 패널에서 로고를 켜면 카메라 브랜드 로고를 캡션 옆에 표시할 수 있습니다. **로고 이미지 파일은 이 저장소에 포함되어 있지 않고, 커밋·배포되지도 않습니다** (`public/logos/`는 `.gitignore`에 등록됨) — Canon, Nikon, Sony 등은 각 제조사의 등록 상표라 공개 저장소에 배포할 수 없기 때문입니다.
+Export의 "EXIF Frame" 패널에서 로고를 켜면 21개 브랜드(Canon, Nikon, Sony, Fujifilm 등)의 업로드 칸이 그리드로 뜹니다. 브랜드를 클릭해 이미지를 올리면, 그 브랜드로 인식된 사진의 캡션에 자동으로 표시됩니다.
 
-로컬에서 로고를 보려면 `public/logos/` 폴더를 만들고 브랜드별 PNG 파일(투명 배경 권장, 정사각형에 가깝게)을 아래 파일명으로 넣으세요. 파일이 없는 브랜드는 자동으로 텍스트만 표시됩니다.
+업로드한 이미지는 **이 브라우저의 localStorage에만** 저장됩니다 — 파일로 저장되지도, 저장소에 커밋되지도, 배포되지도 않습니다. Canon·Nikon·Sony 같은 로고는 각 제조사의 등록 상표라 공개 저장소·사이트에는 절대 포함하지 않는다는 원칙을 지키기 위한 구조입니다. 브라우저 데이터를 지우면 업로드한 로고도 함께 사라집니다.
 
-```
-public/logos/canon.png      public/logos/pentax.png      public/logos/samsung.png
-public/logos/nikon.png      public/logos/ricoh.png       public/logos/google.png
-public/logos/sony.png       public/logos/leica.png       public/logos/huawei.png
-public/logos/fujifilm.png   public/logos/hasselblad.png  public/logos/xiaomi.png
-public/logos/panasonic.png  public/logos/sigma.png       public/logos/oneplus.png
-public/logos/olympus.png    public/logos/kodak.png       public/logos/gopro.png
-public/logos/apple.png      public/logos/casio.png       public/logos/dji.png
-                             public/logos/phaseone.png    public/logos/insta360.png
-```
-
-전체 키 목록과 EXIF 문자열 매칭 규칙은 `src/core/export/brandLogos.ts`에 있습니다.
+브랜드 키 목록과 EXIF 문자열 매칭 규칙은 `src/core/export/brandLogos.ts`에 있습니다.

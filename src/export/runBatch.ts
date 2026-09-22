@@ -1,4 +1,5 @@
 import { Zip, ZipPassThrough } from 'fflate'
+import { resolveBrandKey } from '@/core/export/brandLogos'
 import { renderTemplate } from '@/core/library/filter'
 import { translate } from '@/i18n'
 import { download } from '@/platform/download'
@@ -82,7 +83,9 @@ export async function runBatch() {
       const params = usePhotos.getState().params[id]!
       const p = usePhotos.getState().photos[id]
       const exif = p ? { model: p.camera, lens: p.lens, focalLength: p.focalLength, fNumber: p.fNumber, exposureTime: p.exposureTime, iso: p.iso, capturedAt: p.capturedAt } : undefined
-      const res = await exportPhoto({ file, params, options, watermarkImage: wmBlob, exif }, (f) => patch(id, { progress: f }))
+      const brandKey = options.frame.showLogo && p ? resolveBrandKey(p.camera) : null
+      const frameLogo = brandKey ? st.brandLogos[brandKey] : undefined
+      const res = await exportPhoto({ file, params, options, watermarkImage: wmBlob, exif, frameLogo }, (f) => patch(id, { progress: f }))
       p3Fallback ||= res.p3Fallback
       if (multi) {
         const f = new ZipPassThrough(names[i]!)
