@@ -276,6 +276,47 @@ function fileToLogoDataUrl(file: File): Promise<string> {
  * a brand has an image or not. Images are stored as data URLs in this browser's localStorage only —
  * never written to a file or committed (camera brand marks are third-party trademarks).
  */
+/**
+ * Custom font for the EXIF frame text. Stored only as a data URL in this browser's localStorage
+ * (store/exportSettings.ts) — never written to disk or committed. Fonts are copyrighted software; a
+ * "personal use" font license does not permit shipping the file in a public repo/deployment.
+ */
+function FrameFontPicker() {
+  const t = useT()
+  const font = useExportSettings((s) => s.frameFont)
+  const setFrameFont = useExportSettings((s) => s.setFrameFont)
+  const input = useRef<HTMLInputElement>(null)
+
+  const pick = (file: File | undefined) => {
+    if (!file) return
+    const r = new FileReader()
+    r.onload = () => setFrameFont({ name: file.name, dataUrl: String(r.result) })
+    r.readAsDataURL(file)
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1">
+      <Button onClick={() => input.current?.click()}>{t('ex.frame.fontImport')}</Button>
+      <span className="min-w-0 flex-1 truncate text-xs text-fg-2">{font ? font.name : t('ex.frame.fontNone')}</span>
+      {font && (
+        <Button variant="ghost" onClick={() => setFrameFont(null)} aria-label={t('ex.frame.fontRemove')} title={t('ex.frame.fontRemove')}>
+          ×
+        </Button>
+      )}
+      <input
+        ref={input}
+        type="file"
+        accept=".ttf,.otf,.woff,.woff2,font/*"
+        hidden
+        onChange={(e) => {
+          pick(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+    </div>
+  )
+}
+
 function BrandLogoGrid() {
   const t = useT()
   const logos = useExportSettings((s) => s.brandLogos)
@@ -342,12 +383,43 @@ function BrandLogoGrid() {
   )
 }
 
+const FRAME_FONT_FAMILY = 'LuminaFrameFontPreview'
+
+/**
+ * Loads the user's uploaded EXIF-frame font (if any) into `document.fonts` for the live preview, and
+ * returns the CSS `font-family` value to apply. The font itself lives only in this browser (see
+ * store/exportSettings.ts) — never written to disk or committed.
+ */
+function useFrameFontFamily(): string | undefined {
+  const font = useExportSettings((s) => s.frameFont)
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    // `font && ready` below already goes falsy when there's no font, so nothing to reset here.
+    if (!font) return
+    let cancelled = false
+    const face = new FontFace(FRAME_FONT_FAMILY, `url(${font.dataUrl})`)
+    face
+      .load()
+      .then((f) => {
+        if (cancelled) return
+        document.fonts.add(f)
+        setReady(true)
+      })
+      .catch(() => !cancelled && setReady(false))
+    return () => {
+      cancelled = true
+    }
+  }, [font])
+  return font && ready ? `${FRAME_FONT_FAMILY}, system-ui, sans-serif` : undefined
+}
+
 /** CSS approximation of the caption bar drawn by core/export/frame.ts — close enough for a settings-panel preview. */
 function FrameCaption({ fr, lines, cameraText }: { fr: FrameSettings; lines: FrameLines; cameraText: string | undefined }) {
   const dark = fr.background === 'dark'
   const oneLine = fr.style === 'minimal' || !lines.primary || !lines.secondary
+  const fontFamily = useFrameFontFamily()
   return (
-    <div className={`flex items-center gap-2 ${fr.style === 'film' ? '' : 'px-3 py-2'} ${fr.style === 'film' ? 'justify-center' : 'justify-start'}`}>
+    <div style={{ fontFamily }} className={`flex items-center gap-2 ${fr.style === 'film' ? '' : 'px-3 py-2'} ${fr.style === 'film' ? 'justify-center' : 'justify-start'}`}>
       {fr.showLogo && <BrandLogo cameraText={cameraText} className="h-5 w-5 shrink-0 object-contain" />}
       <div className={`flex flex-col justify-center gap-0.5 ${dark ? 'text-[#f2f1ec]' : 'text-[#141414]'} ${fr.style === 'film' ? 'items-center text-center' : 'items-start'}`}>
         {oneLine ? (
@@ -373,8 +445,9 @@ function StrapCaption({ fr, parts, cameraText }: { fr: FrameSettings; parts: Str
   const primary = dark ? 'text-[#f2f1ec]' : 'text-[#141414]'
   const secondary = dark ? 'text-[#9a9a94]' : 'text-[#5a5a56]'
   const hasRight = !!(parts.camera || parts.lens)
+  const fontFamily = useFrameFontFamily()
   return (
-    <div className="flex items-center justify-between gap-3 px-3 py-2">
+    <div style={{ fontFamily }} className="flex items-center justify-between gap-3 px-3 py-2">
       <div className="flex min-w-0 flex-col justify-center gap-0.5">
         {parts.exposure && <div className={`truncate text-xs font-semibold ${primary}`}>{parts.exposure}</div>}
         {parts.date && <div className={`truncate text-2xs ${secondary}`}>{parts.date}</div>}
@@ -469,6 +542,7 @@ export function FramePanel() {
           <Field label={t('ex.frame.customText')}>
             <input className={inp} value={fr.customText} onChange={(e) => setFrame({ customText: e.target.value })} placeholder={t('ex.frame.customTextPlaceholder')} />
           </Field>
+          <FrameFontPicker />
           {fr.showLogo && <BrandLogoGrid />}
 
           {!hasContent && <p className="px-3 pb-1 text-2xs text-danger">{t('ex.frame.empty')}</p>}

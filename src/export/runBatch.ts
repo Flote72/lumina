@@ -85,7 +85,8 @@ export async function runBatch() {
       const exif = p ? { model: p.camera, lens: p.lens, focalLength: p.focalLength, fNumber: p.fNumber, exposureTime: p.exposureTime, iso: p.iso, capturedAt: p.capturedAt } : undefined
       const brandKey = options.frame.showLogo && p ? resolveBrandKey(p.camera) : null
       const frameLogo = brandKey ? st.brandLogos[brandKey] : undefined
-      const res = await exportPhoto({ file, params, options, watermarkImage: wmBlob, exif, frameLogo }, (f) => patch(id, { progress: f }))
+      const frameFont = st.frameFont ?? undefined
+      const res = await exportPhoto({ file, params, options, watermarkImage: wmBlob, exif, frameLogo, frameFont }, (f) => patch(id, { progress: f }))
       p3Fallback ||= res.p3Fallback
       if (multi) {
         const f = new ZipPassThrough(names[i]!)

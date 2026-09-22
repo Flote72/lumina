@@ -63,6 +63,8 @@ export interface ExportJob {
   exif?: FrameExifInput
   /** brand logo for the info frame, as a data URL (resolved from EXIF on the main thread — see runBatch.ts) */
   frameLogo?: string
+  /** custom font for the info frame text, as a data URL (user-uploaded, local only — see store/exportSettings.ts) */
+  frameFont?: { name: string; dataUrl: string }
 }
 
 export interface ExportResult {
@@ -161,6 +163,7 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
 
     let final: OffscreenCanvas = out
     if (o.frame.enabled) {
+      const fontFamily = (await ensureFrameFont(job.frameFont)) ?? 'system-ui, sans-serif'
       if (o.frame.style === 'strap') {
         const parts = buildStrapParts(job.exif ?? {}, o.frame)
         if (strapHasContent(parts)) {
@@ -168,14 +171,14 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
           // which parts are present — pass non-empty dummy lines so computeFrameGeometry doesn't shrink it.
           const g = computeFrameGeometry(size.w, size.h, 'strap', o.frame.position, { primary: 'x', secondary: 'x' })
           const logo = o.frame.showLogo && job.frameLogo ? await decodeLogo(job.frameLogo) : null
-          final = drawStrapFrame(out, g, parts, o.frame, useP3, logo)
+          final = drawStrapFrame(out, g, parts, o.frame, useP3, logo, fontFamily)
         }
       } else {
         const lines = buildFrameLines(job.exif ?? {}, o.frame)
         if (frameHasContent(lines)) {
           const g = computeFrameGeometry(size.w, size.h, o.frame.style, o.frame.position, lines)
           const logo = o.frame.showLogo && job.frameLogo ? await decodeLogo(job.frameLogo) : null
-          final = drawFrame(out, g, lines, o.frame, useP3, logo)
+          final = drawFrame(out, g, lines, o.frame, useP3, logo, fontFamily)
         }
       }
     }
@@ -246,8 +249,31 @@ function decodeLogo(dataUrl: string): Promise<ImageBitmap | null> {
   return p
 }
 
+const FRAME_FONT_FAMILY = 'LuminaFrameFont'
+// The custom EXIF-frame font is never bundled with the app (see store/exportSettings.ts — it's a
+// copyrighted, personal-use-licensed asset the user uploaded). It arrives here as a data URL and is
+// registered into this worker's font set with the FontFace API, cached so a batch export registers it once.
+const fontCache = new Map<string, Promise<string | null>>()
+function ensureFrameFont(font: { name: string; dataUrl: string } | undefined): Promise<string | null> {
+  if (!font) return Promise.resolve(null)
+  let p = fontCache.get(font.dataUrl)
+  if (!p) {
+    p = fetch(font.dataUrl)
+      .then((r) => r.arrayBuffer())
+      .then(async (buf) => {
+        const face = new FontFace(FRAME_FONT_FAMILY, buf)
+        await face.load()
+        ;(self as unknown as { fonts: { add: (f: FontFace) => void } }).fonts.add(face)
+        return FRAME_FONT_FAMILY
+      })
+      .catch(() => null)
+    fontCache.set(font.dataUrl, p)
+  }
+  return p
+}
+
 /** Draw the photo onto a larger canvas with a caption bar (+ optional margin) per `g`, and return it. */
-function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, frame: FrameSettings, useP3: boolean, logo: ImageBitmap | null): OffscreenCanvas {
+function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, frame: FrameSettings, useP3: boolean, logo: ImageBitmap | null, fontFamily: string): OffscreenCanvas {
   const out = new OffscreenCanvas(g.outW, g.outH)
   const ctx = out.getContext('2d', { colorSpace: useP3 ? 'display-p3' : 'srgb' })!
   const col = FRAME_COLORS[frame.background]
@@ -271,16 +297,16 @@ function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, 
 
   if (g.oneLine) {
     const text = [lines.primary, lines.secondary].filter(Boolean).join('   ·   ')
-    ctx.font = `500 ${g.primaryPx}px system-ui, sans-serif`
+    ctx.font = `500 ${g.primaryPx}px ${fontFamily}`
     ctx.fillStyle = col.primary
     ctx.fillText(text, textX, g.barY + g.barH / 2, maxW)
   } else {
     const midY = g.barY + g.barH * 0.5
     const lineGap = g.barH * 0.09
-    ctx.font = `600 ${g.primaryPx}px system-ui, sans-serif`
+    ctx.font = `600 ${g.primaryPx}px ${fontFamily}`
     ctx.fillStyle = col.primary
     ctx.fillText(lines.primary, textX, midY - lineGap - g.primaryPx * 0.32, maxW)
-    ctx.font = `400 ${g.secondaryPx}px system-ui, sans-serif`
+    ctx.font = `400 ${g.secondaryPx}px ${fontFamily}`
     ctx.fillStyle = col.secondary
     ctx.fillText(lines.secondary, textX, midY + lineGap + g.secondaryPx * 0.32, maxW)
     if (g.divider) {
@@ -299,7 +325,7 @@ function drawFrame(photo: OffscreenCanvas, g: FrameGeometry, lines: FrameLines, 
  * Strap style's fixed layout: left column = exposure (bold) over full date/time (gray); right column =
  * logo, a thin vertical divider, then camera (bold) over lens (gray) — the whole right group right-aligned.
  */
-function drawStrapFrame(photo: OffscreenCanvas, g: FrameGeometry, parts: StrapParts, frame: FrameSettings, useP3: boolean, logo: ImageBitmap | null): OffscreenCanvas {
+function drawStrapFrame(photo: OffscreenCanvas, g: FrameGeometry, parts: StrapParts, frame: FrameSettings, useP3: boolean, logo: ImageBitmap | null, fontFamily: string): OffscreenCanvas {
   const out = new OffscreenCanvas(g.outW, g.outH)
   const ctx = out.getContext('2d', { colorSpace: useP3 ? 'display-p3' : 'srgb' })!
   const col = FRAME_COLORS[frame.background]
@@ -313,8 +339,8 @@ function drawStrapFrame(photo: OffscreenCanvas, g: FrameGeometry, parts: StrapPa
   const lineGap = g.barH * 0.09
   const topY = midY - lineGap - g.primaryPx * 0.32
   const botY = midY + lineGap + g.secondaryPx * 0.32
-  const boldFont = `600 ${g.primaryPx}px system-ui, sans-serif`
-  const lightFont = `400 ${g.secondaryPx}px system-ui, sans-serif`
+  const boldFont = `600 ${g.primaryPx}px ${fontFamily}`
+  const lightFont = `400 ${g.secondaryPx}px ${fontFamily}`
 
   ctx.textBaseline = 'middle'
 

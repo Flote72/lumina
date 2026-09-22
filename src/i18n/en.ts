@@ -493,4 +493,7 @@ export const en: Record<TKey, string> = {
   'ex.frame.logoRemove': 'Remove logo',
   'ex.frame.lensOverride': 'Lens name (manual)',
   'ex.frame.lensOverridePlaceholder': 'e.g. SIGMA 85mm f1.4 EX DG HSM (uses EXIF lens if empty)',
+  'ex.frame.fontImport': 'Import font',
+  'ex.frame.fontNone': 'Default font',
+  'ex.frame.fontRemove': 'Remove font',
 }

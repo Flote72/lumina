@@ -6,6 +6,13 @@ import type { ExportOptions } from '@/export/exporter'
 
 export type ExportScope = 'selection' | 'visible' | 'all'
 
+export interface FrameFont {
+  /** original file name, shown in the UI */
+  name: string
+  /** the font file itself, as a data URL — local only, never leaves this browser */
+  dataUrl: string
+}
+
 export interface ItemState {
   id: string
   name: string
@@ -22,6 +29,8 @@ interface ExportState {
   watermarkImage: string | null
   /** EXIF-frame brand logos, per brand, as data URLs — local only, never leaves this browser */
   brandLogos: Partial<Record<BrandKey, string>>
+  /** EXIF-frame custom font — local only; never written to disk or committed (fonts are copyrighted assets) */
+  frameFont: FrameFont | null
   // run state (not persisted)
   running: boolean
   items: ItemState[]
@@ -36,6 +45,7 @@ interface ExportState {
   setScope: (s: ExportScope) => void
   setWatermarkImage: (d: string | null) => void
   setBrandLogo: (key: BrandKey, dataUrl: string | null) => void
+  setFrameFont: (font: FrameFont | null) => void
   patchItem: (id: string, p: Partial<ItemState>) => void
   setRun: (r: { running?: boolean; items?: ItemState[]; summary?: string | null }) => void
 }
@@ -61,6 +71,7 @@ export const useExportSettings = create<ExportState>()(
       scope: 'selection',
       watermarkImage: null,
       brandLogos: {},
+      frameFont: null,
       running: false,
       items: [],
       summary: null,
@@ -80,13 +91,14 @@ export const useExportSettings = create<ExportState>()(
           else delete brandLogos[key]
           return { brandLogos }
         }),
+      setFrameFont: (frameFont) => set({ frameFont }),
       patchItem: (id, p) => set((s) => ({ items: s.items.map((i) => (i.id === id ? { ...i, ...p } : i)) })),
       setRun: (r) => set(r as Partial<ExportState>),
     }),
     {
       name: 'lumina.export',
       version: 1,
-      partialize: (s) => ({ options: s.options, template: s.template, scope: s.scope, watermarkImage: s.watermarkImage, brandLogos: s.brandLogos }),
+      partialize: (s) => ({ options: s.options, template: s.template, scope: s.scope, watermarkImage: s.watermarkImage, brandLogos: s.brandLogos, frameFont: s.frameFont }),
       // tolerate settings saved by older versions
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ExportState>
@@ -94,6 +106,7 @@ export const useExportSettings = create<ExportState>()(
           ...current,
           ...p,
           brandLogos: p.brandLogos ?? {},
+          frameFont: p.frameFont ?? null,
           options: {
             ...DEFAULT_EXPORT,
             ...p.options,
