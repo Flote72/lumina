@@ -248,7 +248,10 @@ export function ExportStage() {
   if (sup && !sup.worker) return <EmptyState title={t('ex.noWorker')} />
   if (!ids.length && !items.length) return <EmptyState title={t('ex.nothing')} body={t('empty.export.body')} />
 
-  const list = running || items.length ? items : ids.map((id, i) => ({ id, name: names[i]!, status: 'waiting' as const, progress: 0, message: undefined }))
+  // Keep showing the finished list right after a run, but the moment the target selection changes
+  // (new photos picked, scope changed, …) switch back to a fresh "waiting" list for the new batch.
+  const sameBatch = items.length === ids.length && items.every((it, i) => it.id === ids[i])
+  const list = running || sameBatch ? items : ids.map((id, i) => ({ id, name: names[i]!, status: 'waiting' as const, progress: 0, message: undefined }))
   const done = items.filter((i) => i.status === 'done' || i.status === 'error').length
 
   return (
