@@ -153,8 +153,8 @@
 - ✅ 실제 사진으로 내보내 참고 이미지와 텍스트·배치가 일치함을 확인("ISO320 F8 1/800s" / "2026/07/19 13:47:44" / 로고·구분선·"Canon EOS 5D Mark II"·"SIGMA 85mm f1.4 EX DG HSM")
 - ⚠ Minimal/Film 스타일은 기존의 유연한 두 줄 조합 방식을 그대로 사용(스타일별로 별도 구성)
 
-### EXIF 프레임 커스텀 글꼴 (✅ 동작 확인, 로컬 전용)
-- ✅ Export → EXIF Frame에 "Import font" 버튼 추가: .ttf/.otf/.woff/.woff2 업로드 → 이 브라우저의 localStorage에 data URL로 저장(브랜드 로고와 동일한 방식). 저장소에 파일로 쓰지도, 커밋·배포하지도 않음 — 대부분의 무료 배포 폰트는 "개인 사용만 허용" 라이선스라 공개 저장소 배포는 그 조건을 벗어남
-- ✅ 설정 패널 미리보기: `FontFace` API로 `document.fonts`에 등록해 실시간 적용
-- ✅ **실제 내보내기에도 적용**: 내보내기 Worker 안에서 `self.fonts.add()`로 동일하게 등록 후 OffscreenCanvas 2D 컨텍스트의 `fillText`에 사용. 커스텀 폰트 유무로 렌더링된 두 파일을 나란히 비교해 글자 모양이 실제로 달라지는 것을 확인(Worker 폰트 등록이 OffscreenCanvas 텍스트 렌더링에 반영되는지가 가장 불확실한 부분이었음)
-- ⚠ 폰트 이름(글꼴 패밀리)은 파싱하지 않고 내부 고정 이름으로 등록함 — 여러 웨이트를 가진 폰트 패밀리를 올려도 굵기 구분 없이 업로드한 파일 하나로만 렌더링됨
+### EXIF 프레임 캡션 글꼴: Alumni Sans Pinstripe 고정 (✅ 동작 확인, 저장소에 실제로 포함)
+- ✅ 캡션 글꼴을 **Alumni Sans Pinstripe**([googlefonts/alumni-sans-pinstripe](https://github.com/googlefonts/alumni-sans-pinstripe))로 고정. 사용자가 직접 올리거나 고르는 옵션은 없음(이전에 검토했던 업로드 방식은 되돌림)
+- ✅ SIL OFL 1.1 라이선스 — 재배포를 명시적으로 허용하므로 브랜드 로고와 달리 `public/fonts/alumni-sans-pinstripe/`에 실제로 커밋·배포됨(`src/core/export/builtinFonts.ts`, `THIRD_PARTY.md`)
+- ✅ 설정 패널 미리보기: `FontFace` API로 `document.fonts`에 등록해 실시간 적용(모듈 레벨 캐시로 한 번만 로드 — `document.fonts.check()`는 가족명이 등록 안 돼 있어도 `true`를 반환하는 브라우저가 있어 가드로 쓰면 안 됨을 확인)
+- ✅ **실제 내보내기에도 적용**: 내보내기 Worker 안에서 `self.fonts.add()`로 동일하게 등록 후 OffscreenCanvas 2D 컨텍스트의 `fillText`에 사용. 내보낸 파일을 직접 열어 글자가 Pretendard/Inter 등 UI 폰트와 다른 폭이 좁은(pinstripe) 글꼴로 렌더링되는 것을 확인

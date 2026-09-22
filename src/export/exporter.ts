@@ -10,6 +10,7 @@ import {
   type WatermarkPosition,
 } from '@/core/export/size'
 import { buildXmpSegment, extractExifSegment, injectJpegSegments, pngWithText, resetExifOrientation } from '@/core/export/fileMeta'
+import { builtinFontUrl, FRAME_FONT } from '@/core/export/builtinFonts'
 import {
   buildFrameLines,
   buildStrapParts,
@@ -63,8 +64,6 @@ export interface ExportJob {
   exif?: FrameExifInput
   /** brand logo for the info frame, as a data URL (resolved from EXIF on the main thread — see runBatch.ts) */
   frameLogo?: string
-  /** custom font for the info frame text, as a data URL (user-uploaded, local only — see store/exportSettings.ts) */
-  frameFont?: { name: string; dataUrl: string }
 }
 
 export interface ExportResult {
@@ -163,7 +162,7 @@ export async function runExport(job: ExportJob, onProgress?: (f: number) => void
 
     let final: OffscreenCanvas = out
     if (o.frame.enabled) {
-      const fontFamily = (await ensureFrameFont(job.frameFont)) ?? 'system-ui, sans-serif'
+      const fontFamily = (await ensureFrameFont()) ?? 'system-ui, sans-serif'
       if (o.frame.style === 'strap') {
         const parts = buildStrapParts(job.exif ?? {}, o.frame)
         if (strapHasContent(parts)) {
@@ -250,26 +249,20 @@ function decodeLogo(dataUrl: string): Promise<ImageBitmap | null> {
 }
 
 const FRAME_FONT_FAMILY = 'LuminaFrameFont'
-// The custom EXIF-frame font is never bundled with the app (see store/exportSettings.ts — it's a
-// copyrighted, personal-use-licensed asset the user uploaded). It arrives here as a data URL and is
-// registered into this worker's font set with the FontFace API, cached so a batch export registers it once.
-const fontCache = new Map<string, Promise<string | null>>()
-function ensureFrameFont(font: { name: string; dataUrl: string } | undefined): Promise<string | null> {
-  if (!font) return Promise.resolve(null)
-  let p = fontCache.get(font.dataUrl)
-  if (!p) {
-    p = fetch(font.dataUrl)
-      .then((r) => r.arrayBuffer())
-      .then(async (buf) => {
-        const face = new FontFace(FRAME_FONT_FAMILY, buf)
-        await face.load()
-        ;(self as unknown as { fonts: { add: (f: FontFace) => void } }).fonts.add(face)
-        return FRAME_FONT_FAMILY
-      })
-      .catch(() => null)
-    fontCache.set(font.dataUrl, p)
-  }
-  return p
+// The EXIF-frame caption font is bundled with the app (public/fonts/, OFL-licensed — see
+// core/export/builtinFonts.ts) and registered into this worker's font set once via the FontFace API.
+let fontPromise: Promise<string | null> | null = null
+function ensureFrameFont(): Promise<string | null> {
+  fontPromise ??= fetch(builtinFontUrl(FRAME_FONT.file))
+    .then((r) => r.arrayBuffer())
+    .then(async (buf) => {
+      const face = new FontFace(FRAME_FONT_FAMILY, buf)
+      await face.load()
+      ;(self as unknown as { fonts: { add: (f: FontFace) => void } }).fonts.add(face)
+      return FRAME_FONT_FAMILY
+    })
+    .catch(() => null)
+  return fontPromise
 }
 
 /** Draw the photo onto a larger canvas with a caption bar (+ optional margin) per `g`, and return it. */

@@ -57,4 +57,4 @@ Export의 "EXIF Frame" 패널에서 로고를 켜면 21개 브랜드(Canon, Niko
 
 브랜드 키 목록과 EXIF 문자열 매칭 규칙은 `src/core/export/brandLogos.ts`에 있습니다.
 
-같은 패널의 "Import font" 버튼으로 캡션에 쓸 글꼴(.ttf/.otf/.woff/.woff2)도 올릴 수 있습니다. 폰트 파일도 로고와 똑같이 **이 브라우저에만** 저장되고 커밋·배포되지 않습니다 — 대부분의 무료 폰트는 "개인 사용만 허용, 상업적 이용·재배포 금지" 같은 라이선스라 공개 저장소에 넣으면 그 조건을 넘어서게 됩니다. 올린 폰트는 설정 패널 미리보기와 실제 내보낸 파일 모두에 적용됩니다.
+캡션 글꼴은 [Alumni Sans Pinstripe](https://github.com/googlefonts/alumni-sans-pinstripe)로 고정되어 있습니다(`public/fonts/`, SIL OFL 1.1 — 재배포를 명시적으로 허용하는 라이선스라 로고와 달리 저장소에 실제로 커밋되어 있습니다). 사용자가 직접 고를 수 있는 옵션은 아니며, 설정 패널 미리보기와 실제 내보낸 파일 모두 이 폰트로 렌더링됩니다. 라이선스 전문은 `public/fonts/alumni-sans-pinstripe/OFL.txt`, 출처 표기는 `THIRD_PARTY.md`에 있습니다.

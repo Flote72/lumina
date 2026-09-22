@@ -491,9 +491,6 @@ export const ko = {
   'ex.frame.logoRemove': '로고 삭제',
   'ex.frame.lensOverride': '렌즈 이름 직접 입력',
   'ex.frame.lensOverridePlaceholder': '예: SIGMA 85mm f1.4 EX DG HSM (비워두면 EXIF 렌즈 사용)',
-  'ex.frame.fontImport': '글꼴 올리기',
-  'ex.frame.fontNone': '기본 글꼴',
-  'ex.frame.fontRemove': '글꼴 삭제',
 } as const
 
 export type TKey = keyof typeof ko
