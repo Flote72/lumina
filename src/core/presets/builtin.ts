@@ -16,6 +16,13 @@ const G = {
   land: { ko: '풍경', en: 'Landscape' },
   creative: { ko: '크리에이티브', en: 'Creative' },
   util: { ko: '유틸리티', en: 'Utility' },
+  night: { ko: '야간', en: 'Night' },
+  street: { ko: '스트리트', en: 'Street' },
+  travel: { ko: '여행', en: 'Travel' },
+  season: { ko: '계절', en: 'Seasonal' },
+  food: { ko: '푸드', en: 'Food' },
+  product: { ko: '제품', en: 'Product' },
+  wedding: { ko: '웨딩', en: 'Wedding' },
 }
 const P = (id: string, group: keyof typeof G, ko: string, en: string, patch: DeepPartial<EditParams>): BuiltinPreset => ({
   id: `builtin.${id}`,
@@ -92,4 +99,92 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
   // Utility
   P('util-clarity', 'util', '명료도 강화', 'Clarity Boost', { basic: { clarity: 30, texture: 20, dehaze: 10 } }),
   P('util-sharpen', 'util', '웹용 샤프닝', 'Sharpen for Web', { detail: { sharpAmount: 60, sharpRadius: 1, sharpDetail: 30, sharpMasking: 20 } }),
+  P('util-flat', 'util', '플랫 프로파일', 'Flat Profile', { basic: { contrast: -20, saturation: -15, highlights: -10, shadows: 10 } }),
+  // Night
+  P('night-neon', 'night', '네온 나이트', 'Neon Night', {
+    basic: { contrast: 25, shadows: 15, blacks: -10, clarity: 15, vibrance: 20 },
+    grading: { shadows: { h: 260, s: 35, l: 0 }, highlights: { h: 300, s: 25, l: 0 }, blending: 55 },
+    mixer: { hue: { blue: -5 }, sat: { blue: 20, purple: 25, magenta: 20 } },
+    effects: { grainAmount: 15 },
+  }),
+  P('night-bluehour', 'night', '블루 아워', 'Blue Hour', {
+    basic: { temp: -18, tint: 2, exposure: 0.2, shadows: 25, contrast: 10, highlights: -10 },
+    grading: { shadows: { h: 225, s: 30, l: 0 }, midtones: { h: 220, s: 12, l: 0 } },
+    effects: { vigAmount: -20 },
+  }),
+  P('night-warmglow', 'night', '야간 불빛', 'Warm Night Glow', {
+    basic: { temp: 8, contrast: 20, highlights: -10, shadows: 10 },
+    grading: { highlights: { h: 40, s: 35, l: 0 }, shadows: { h: 220, s: 25, l: 0 }, blending: 50 },
+    effects: { vigAmount: -25, grainAmount: 18 },
+  }),
+  P('night-portrait', 'night', '야간 인물', 'Night Portrait', {
+    basic: { exposure: 0.3, shadows: 30, blacks: -5, clarity: -5 },
+    mixer: { lum: { orange: 10 }, sat: { orange: -5 } },
+    detail: { nrLum: 20, nrColor: 15 },
+  }),
+  P('night-street', 'night', '야간 스트리트', 'Night Street', {
+    basic: { contrast: 35, blacks: -25, clarity: 20, highlights: -15 },
+    grading: { shadows: { h: 200, s: 30, l: 0 } },
+    effects: { vigAmount: -35, grainAmount: 35, grainSize: 30 },
+  }),
+  // Street
+  P('street-urban', 'street', '어반 그릿', 'Urban Grit', { basic: { contrast: 30, clarity: 25, texture: 15, saturation: -20, dehaze: 10 }, effects: { grainAmount: 25 } }),
+  P('street-rain', 'street', '레이니 스트리트', 'Rainy Street', {
+    basic: { temp: -8, tint: 3, contrast: -5, highlights: -20, saturation: -10, clarity: 10 },
+    grading: { shadows: { h: 210, s: 20, l: 0 } },
+  }),
+  P('street-concrete', 'street', '콘크리트 정글', 'Concrete Jungle', {
+    basic: { contrast: 15, saturation: -25, clarity: 25, dehaze: 12, blacks: -10 },
+    grading: { shadows: { h: 200, s: 15, l: 0 }, highlights: { h: 200, s: 8, l: 0 } },
+  }),
+  // Travel
+  P('travel-tropical', 'travel', '트로피컬 비비드', 'Tropical Vivid', {
+    basic: { exposure: 0.2, contrast: 15, vibrance: 35, saturation: 12, dehaze: 10 },
+    mixer: { sat: { green: 15, aqua: 20, blue: 10 } },
+  }),
+  P('travel-beach', 'travel', '비치 브라이트', 'Beach Bright', { basic: { exposure: 0.4, temp: 8, highlights: -10, whites: 15, shadows: 15, saturation: -5 } }),
+  P('travel-sunset', 'travel', '선셋 비치', 'Sunset Beach', {
+    basic: { temp: 20, exposure: 0.15, highlights: -15, vibrance: 25 },
+    grading: { highlights: { h: 30, s: 45, l: 0 }, shadows: { h: 320, s: 15, l: 0 } },
+  }),
+  P('travel-pastelpool', 'travel', '풀사이드 파스텔', 'Poolside Pastel', {
+    basic: { exposure: 0.3, contrast: -12, shadows: 20, saturation: -10 },
+    grading: { shadows: { h: 190, s: 15, l: 0 }, highlights: { h: 340, s: 10, l: 0 } },
+  }),
+  // Seasonal
+  P('season-autumn', 'season', '가을 감성', 'Autumn Warmth', {
+    basic: { temp: 15, contrast: 12, vibrance: 15 },
+    mixer: { hue: { yellow: -10, orange: 5 }, sat: { orange: 15, yellow: 15 }, lum: { orange: -5 } },
+  }),
+  P('season-spring', 'season', '봄 파스텔', 'Spring Pastel', { basic: { exposure: 0.2, contrast: -8, shadows: 15, vibrance: 10 }, mixer: { sat: { green: 10, magenta: 8 } } }),
+  P('season-winter', 'season', '윈터 프로스트', 'Winter Frost', {
+    basic: { temp: -15, contrast: 10, whites: 15, saturation: -15, clarity: 10 },
+    grading: { shadows: { h: 210, s: 15, l: 0 } },
+  }),
+  // Food
+  P('food-warm', 'food', '푸드 웜', 'Food Warm', {
+    basic: { temp: 10, exposure: 0.15, contrast: 15, texture: 15, clarity: 10, vibrance: 15 },
+    mixer: { sat: { red: 10, orange: 12 } },
+  }),
+  P('food-clean', 'food', '푸드 클린', 'Food Clean Bright', { basic: { exposure: 0.3, contrast: 8, whites: 10, texture: 10, clarity: 8 } }),
+  // Product
+  P('product-white', 'product', '클린 화이트', 'Clean White', { basic: { exposure: 0.35, contrast: 5, whites: 20, blacks: 5, clarity: 8, saturation: -5 } }),
+  P('product-minimal', 'product', '미니멀 소프트', 'Minimal Soft', { basic: { contrast: -10, shadows: 15, clarity: -5, saturation: -8 } }),
+  // Wedding
+  P('wed-pastel', 'wedding', '파스텔 웨딩', 'Pastel Wedding', { basic: { exposure: 0.3, contrast: -12, highlights: -10, shadows: 20, vibrance: 10 }, mixer: { lum: { orange: 8 } } }),
+  P('wed-romance', 'wedding', '소프트 로맨스', 'Soft Romance', {
+    basic: { temp: 6, exposure: 0.2, contrast: -8, highlights: -15, clarity: -10 },
+    grading: { highlights: { h: 35, s: 15, l: 0 } },
+  }),
+  // Creative (additions)
+  P('cr-darkacademia', 'creative', '다크 아카데미아', 'Dark Academia', {
+    basic: { contrast: 25, shadows: -10, blacks: -15, saturation: -15, temp: 6 },
+    grading: { shadows: { h: 30, s: 20, l: 0 }, midtones: { h: 40, s: 10, l: 0 } },
+  }),
+  P('cr-dreamyhaze', 'creative', '드리미 헤이즈', 'Dreamy Haze', { basic: { contrast: -15, blacks: 20, highlights: -10, clarity: -20, dehaze: -15 }, effects: { vigAmount: -10 } }),
+  P('cr-retrovhs', 'creative', '레트로 VHS', 'Retro VHS', {
+    basic: { contrast: 10, saturation: 10 },
+    toneCurve: { points: { r: pt(0, 10, 128, 140, 255, 250), b: pt(0, 0, 128, 118, 255, 245) } },
+    effects: { grainAmount: 40, grainSize: 40, grainRough: 70 },
+  }),
 ]
