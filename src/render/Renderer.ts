@@ -479,12 +479,14 @@ export class Renderer {
       .f1('uZoom', f.zoom)
       .f2('uHalfFrame', f.half[0], f.half[1])
     this.setFinalUniforms(pr, clip)
+    // create the LUT first: on a cache miss curveTexture() binds to whichever unit is active
+    const curve = this.curveTexture(pr)
     const work = this.workTex!
     this.tex(0, work)
     this.tex(1, (this.blurS ?? this.work)!.tex)
     this.tex(2, (this.blurL ?? this.work)!.tex)
     this.tex(3, (this.blurR ?? this.work)!.tex)
-    this.tex(4, this.curveTexture(pr))
+    this.tex(4, curve)
     if (this.masksTex) {
       const gl = this.gl
       gl.activeTexture(gl.TEXTURE5)
